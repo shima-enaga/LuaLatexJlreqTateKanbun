@@ -1,0 +1,139 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{bousen}[2025/05/17 v1.0 kanbun.styで傍線を引くためのパッケージ]
+
+% LaTeX3の基本パッケージを読み込み
+\RequirePackage{expl3}
+\RequirePackage{xparse}
+
+% パッケージの依存関係チェック
+\@ifpackageloaded{luatexja}{}{%
+  \PackageError{bousen}{luatexjaパッケージが読み込まれていません}{%
+    このパッケージはluatexjaパッケージに依存しています。\MessageBreak
+    先に\string\usepackage{luatexja}を実行してください。}%
+}
+\@ifpackageloaded{tikz}{}{%
+  \RequirePackage{tikz}  % 自動的に読み込む
+}
+
+% LaTeX3のコードブロックを開始
+\ExplSyntaxOn
+
+% 変数の宣言
+\tl_new:N \l__bousen_yoko_tl
+\tl_new:N \l__bousen_hajime_tl
+\tl_new:N \l__bousen_shita_tl
+\tl_new:N \l__bousen_thickness_tl
+\bool_new:N \l__bousen_double_bool
+\tl_new:N \l__bousen_label_tl
+\tl_new:N \l__bousen_vspace_before_tl
+\tl_new:N \l__bousen_vspace_after_tl
+\tl_new:N \l__bousen_color_tl
+\tl_new:N \l__bousen_style_tl
+\box_new:N \l__bousen_content_box
+
+% プロパティリストの作成
+\keys_define:nn { bousen } {
+  yoko .tl_set:N = \l__bousen_yoko_tl,
+  yoko .initial:n = 0.3\zw,
+
+  hajime .tl_set:N = \l__bousen_hajime_tl,
+  hajime .initial:n = 0\zw,
+
+  shita .tl_set:N = \l__bousen_shita_tl,
+  shita .initial:n = 0\zw,
+
+  thickness .tl_set:N = \l__bousen_thickness_tl,
+  thickness .initial:n = 0.4pt,
+
+  double .bool_set:N = \l__bousen_double_bool,
+  double .initial:n = false,
+
+  label .tl_set:N = \l__bousen_label_tl,
+  label .initial:n = {},
+
+  vspaceBefore .tl_set:N = \l__bousen_vspace_before_tl,
+  vspaceBefore .initial:n = {},
+
+  vspaceAfter .tl_set:N = \l__bousen_vspace_after_tl,
+  vspaceAfter .initial:n = {},
+
+  color .tl_set:N = \l__bousen_color_tl,
+  color .initial:n = black,
+
+  style .tl_set:N = \l__bousen_style_tl,
+  style .initial:n = solid,
+}
+
+% 傍線を描画する内部関数
+\cs_new_protected:Nn \__bousen_draw:n {
+  % 空白調整
+  \tl_if_empty:NF \l__bousen_vspace_before_tl {
+    \hspace{\l__bousen_vspace_before_tl}
+  }
+
+  % 垂直モードなら脱出
+  \if_mode_vertical:
+    \leavevmode
+  \fi
+
+  % 縦書きモードかチェック
+  \if@tate
+    % ボックスを設定（LaTeX2eの方法で）
+    \setbox\l__bousen_content_box=\hbox{#1}
+    \hbox{
+      \begin{tikzpicture}[remember~picture,~baseline=(A.base)]
+        \node~(A)~at~(0,0)[inner~sep=0pt,outer~sep=0pt]{\box_use:N \l__bousen_content_box};
+
+        % 二重線の場合
+        \bool_if:NTF \l__bousen_double_bool {
+          \draw[line~width=\l__bousen_thickness_tl,~color=\l__bousen_color_tl,~\l__bousen_style_tl]
+            ([xshift=\l__bousen_hajime_tl,yshift=\l__bousen_yoko_tl]A.north~west)~--~
+            ([xshift=\l__bousen_shita_tl-0.8\zw,~yshift=\l__bousen_yoko_tl]A.north~east);
+          \draw[line~width=\l__bousen_thickness_tl,~color=\l__bousen_color_tl,~\l__bousen_style_tl]
+            ([xshift=\l__bousen_hajime_tl,yshift=\l__bousen_yoko_tl+0.2\zw]A.north~west)~--~
+            ([xshift=\l__bousen_shita_tl-0.8\zw,~yshift=\l__bousen_yoko_tl+0.2\zw]A.north~east);
+
+          % ラベルがある場合
+          \tl_if_empty:NF \l__bousen_label_tl {
+            \node[anchor=base,~font=\small]~at~
+              ([xshift=\l__bousen_hajime_tl+3mm,~yshift=\dim_eval:n{\l__bousen_yoko_tl+0.6\zw}]A.north~west)
+              {\l__bousen_label_tl};
+          }
+        }
+        % 単線の場合
+        {
+          \draw[line~width=\l__bousen_thickness_tl,~color=\l__bousen_color_tl,~\l__bousen_style_tl]~
+            ([xshift=\l__bousen_hajime_tl,yshift=\l__bousen_yoko_tl]A.north~west)~--~
+            ([xshift=\l__bousen_shita_tl-1\zw,~yshift=\l__bousen_yoko_tl]A.north~east);
+
+          % ラベルがある場合
+          \tl_if_empty:NF \l__bousen_label_tl {
+            \node[anchor=base,~font=\small]~at~
+              ([xshift=\l__bousen_hajime_tl+3mm,~yshift=\dim_eval:n{\l__bousen_yoko_tl+0.4\zw}]A.north~west)
+              {\l__bousen_label_tl};
+          }
+        }
+      \end{tikzpicture}
+    }
+
+    % 後ろの空白調整
+    \tl_if_empty:NF \l__bousen_vspace_after_tl {
+      \hspace{\l__bousen_vspace_after_tl}
+    }
+    \ignorespaces
+  \else
+    \PackageError{bousen}{横書き環境では \token_to_str:N \bousen\space は使用できません}{このパッケージは縦書き専用です。横書きでの使用はサポートしていません。}
+  \fi
+}
+
+% ユーザーインターフェース
+\NewDocumentCommand \bousen { O{} m } {
+  \group_begin:
+  \keys_set:nn { bousen } { #1 }
+  \__bousen_draw:n { #2 }
+  \group_end:
+}
+
+\ExplSyntaxOff
+
+\endinput
