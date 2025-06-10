@@ -1,0 +1,1023 @@
+\NeedsTeXFormat{LaTeX2e}[2021/06/01]
+\RequirePackage{expl3,xparse,l3keys2e,ifluatex}
+\ProvidesExplClass{kanbun}
+{2025/4/10} {2.0} {漢文の訓点文の組版（LuaLaTeX専用）}
+
+% ------------------------------------------------------------------------------
+% LuaLaTeXでの使用を確認する
+% 他のエンジンでの使用を想定するとコードが複雑になるので限定することにした
+% ------------------------------------------------------------------------------
+\RequirePackage{ifluatex}
+\ifluatex\else
+  \ClassError{kanbun}{このスタイルファイルはLuaLaTeX専用}{%
+    その他のエンジンでの使用は想定していないのでごめんなさい}
+\fi
+% ------------------------------------------------------------------------------
+
+\ExplSyntaxOn
+% これより下は LATEX3形式で記述
+% キー定義に新しいオプションを追加
+\keys_define:nn { kanbun } {
+}
+
+\bool_new:N \g_kana_bool
+\bool_new:N \g_kanbun_long_okurigana_below_bool
+\bool_gset_false:N \g_kanbun_long_okurigana_below_bool  % デフォルトは横出し
+
+\dim_new:N  \g_kanbun_zw_dim
+
+\fp_new:N   \g_kanbun_scale_fp
+\fp_new:N   \g_kanbun_okuriintrusion_fp
+\fp_new:N   \g_kanbun_tateaki_fp
+\fp_new:N   \g_kanbun_yokoaki_fp
+
+\str_new:N  \g_kanbun_kumi_str
+
+\tl_new:N   \g_kanbun_fontcmd_tl
+\tl_new:N   \g_kanbun_rubyfontcmd_tl
+\tl_new:N   \g_kanbun_zwtosp_tl
+\tl_new:N   \g__kanbun_fontcmd_default_tl
+\tl_new:N   \g__kanbun_rubyfontcmd_default_tl
+
+\tl_new:N   \g_kanbun_tateten_width_tl
+\tl_new:N   \g_kanbun_rubyfontsize_rubyfontcmd_tl
+
+
+\tl_new:N   \l__kanbun_punct_glue_tl
+\tl_new:N   \l__kanbun_unit_glue_tl
+\tl_new:N   \l_kanbun_ninojiten_punct_tl
+\tl_new:N   \l_kanbun_right_punct_tl
+
+\bool_new:N \l_kanbun_first_right_punct_is_kagi_bool
+\bool_new:N \l_kanbun_is_right_kana_bool
+
+\box_new:N  \l_kanbun_current_kanjiunit_box
+\box_new:N  \l_kanbun_furiokuri_tmp_box
+
+\dim_new:N  \l_kanbun_target_length_dim
+\dim_new:N  \l_kanbun_total_length_dim
+\dim_new:N \l_kanbun_furi_len_dim
+\dim_new:N \l_kanbun_okuri_len_dim
+\dim_new:N \l_kanbun_furiokuri_firstline_len_dim
+
+\int_new:N  \l_kanbun_furiokuri_firstline_start_index_int
+    % 整数値変数として宣言
+    % 上記の使用例は単に整数値でなくインデックスとして使用
+    % インデックスの初期化
+    % \int_set:Nn \l_kanbun_furiokuri_firstline_start_index_int { 0 }
+    % インデックスの増加
+    % \int_incr:N \l_kanbun_furiokuri_firstline_start_index_int
+    % 条件分岐での利用
+    % \int_compare:nNnTF { \l_kanbun_furiokuri_firstline_start_index_int } > { 5 }
+    % { % インデックスが5より大きい場合の処理 }
+    % { % インデックスが5以下の場合の処理 }
+\int_new:N  \l_kanbun_split_position_int
+\int_new:N  \l_kanbun_tmpc_int
+
+\regex_new:N \c_kana_regex
+
+\str_new:N  \l_kanbun_furiokuri_all_str
+
+\tl_new:N   \l_kanbun_central_punct_tl
+\tl_new:N   \l_kanbun_central_punct_box_tl
+\tl_new:N   \l_kanbun_kaeriten_output_tl
+\tl_new:N   \l_kanbun_left_punct_phantom_tl
+\tl_new:N   \l_kanbun_right_punct_box_tl
+\tl_new:N   \l_kanbun_unit_content_tl
+\tl_new:N   \l_tmpa_for_lua_tl
+\tl_new:N   \l_tmpb_for_lua_tl
+
+\cs_generate_variant:Nn \str_if_eq:nnTF { V } % <1>
+\cs_generate_variant:Nn \str_case:nnTF  { V }  % <2>
+\cs_generate_variant:Nn \str_case:nnTF  { f }  % <3>
+
+% 上の３つはまとめて説明
+%
+% <1> の意味
+%   \str_if_eq:nnTF 関数（２つの文字列を比較する関数）のバリアント関数として
+%   \str_if_eq:VnTF を作成（最初の引数を変数として評価するバージョン）を生成
+%   ------------------------------------------------------------------------
+%   バリアント関数の意味:
+%
+%   元の関数は、
+%   \str_if_eq:nnTF {hello} {hello}
+%   {hello} と {hello} が同じなら{真}、異なる内容なら {偽}を出力
+%
+%   バリアント関数（元の関数から派生した変種の関数）は、
+%   \str_if_eq:VnTF \l_my_var {hello}
+%   変数 \l_my_var の内容と {hello} がなら{真}、異なる内容なら {偽}を出力
+%   ----------------------------------------------------------------------------
+% <2> の意味
+%   \str_case:nnTF 関数（文字列による条件分岐）のバリアント関数として
+%   \str_case:VnTF を作成（最初の引数を変数として評価する）
+%
+% <3> の意味
+%   \str_case:nnTF 関数ののバリアント関数として
+%   \str_case:fnTF を作成（最初の引数を関数として評価する）
+% ------------------------------------------------------------------------------
+% n: 通常の引数（そのまま使用）
+% V: 変数の内容を展開して使用
+% f: 関数を実行した結果を使用
+% これらのバリアント関数を生成することで、変数や関数の結果を直接、
+% 引数として使用できるようになる
+% ------------------------------------------------------------------------------
+% luatexja-fontspecパッケージが読み込まれているかどうかをチェック
+% ------------------------------------------------------------------------------
+% 日本語フォントを使う場合、
+% \addjfontfeatures{RawFeature={+ruby}} を設定しても、
+% ルビに関する効果が出るフォントは大手フォント会社の有料フォントだけ
+% Notoまたは源ノ明朝などでは意味はない
+% また、{RawFeature={+trad}}についても、旧字体フォントを用いることを推奨する
+% 逆にこれらの設定をすると無用なワーニングが出たりする
+% このため以下の設定は行わない
+%
+% 一方、中国語フォントを使う場合、以下の設定には意味がある場合が多いので、
+% 以下のコメントアウトした部分は有効となるようした方が良いかもしれない
+%
+%\@ifpackageloaded{luatexja-fontspec}{
+%    % 読み込まれているならば、
+%    \tl_set:Nn \g__kanbun_rubyfontcmd_default_tl {
+%        \addjfontfeatures{RawFeature={+ruby}}
+%        %   \g__kanbun_rubyfontcmd_default_tl に
+%        %   \addjfontfeatures{RawFeature={+ruby}} を設定
+%    }
+%    \tl_set:Nn \g__kanbun_fontcmd_default_tl {
+%        \addjfontfeatures{RawFeature={+trad}}
+%        %   \g__kanbun_fontcmd_default_tlに
+%        %   \addjfontfeatures{RawFeature={+trad}} を設定
+%    }
+%}{
+%    % 読み込まれていなければ
+%    \tl_set:Nn \g__kanbun_rubyfontcmd_default_tl {}
+%    % \g__kanbun_rubyfontcmd_default_tl に何も設定しない
+%
+%    \tl_set:Nn \g__kanbun_fontcmd_default_tl {}
+%    % \g__kanbun_fontcmd_default_tl に何も設定しない
+%}
+% -----------------------------------------------------------------------------------------
+% 文書が縦書きかどうかを判定
+% -----------------------------------------------------------------------------------------
+\cs_if_exist:NF \platex_if_direction_tate:TF {
+    % \cs_if_exist:NFは、指定したコマンドが存在しない場合に次の処理を実行する
+    \prg_new_conditional:Npnn \platex_if_direction_tate: { TF, T, F } {
+        % prg_new_conditional:Npnn は新しい条件を定義
+        % { TF, T, F }は、条件が真の場合はT（True）、偽の場合はF（False）を返す
+        \ifnum\ltjgetparameter{direction}=3
+            % \ltjgetparameter{direction}を使って文書が縦書きかどうかを判定
+            % 値が3の場合、縦書きとしてtrueを返す
+            \prg_return_true:
+        \else
+            \prg_return_false:
+        \fi
+    }
+}
+% -----------------------------------------------------------------------------------------
+% キー定義
+% -----------------------------------------------------------------------------------------
+\keys_define:nn { kanbun }{
+    , scale .fp_set:N = \g_kanbun_scale_fp
+    , scale .initial:n = { 2 }
+%       scale は、ルビ文字のサイズに対する漢字のサイズ
+%       初期値を 2 とする
+%   , fontcmd .tl_set:N = \g_kanbun_fontcmd_tl
+%   , fontcmd .initial:n = \g__kanbun_fontcmd_default_tl
+%   , rubyfontcmd .tl_set:N = \g_kanbun_rubyfontcmd_tl
+%   , rubyfontcmd .initial:n = \g__kanbun_rubyfontcmd_default_tl
+%       fontcmd は 旧字体の書体コマンド
+%       rubyfontcmdルビ文字の書体コマンド
+%       上述のように日本語フォントを使用している場合は有用性がないためにコメントアウト
+    , unit .dim_set:N = \g_kanbun_zw_dim
+    , unit .initial:n = { 1em }
+%       unitは漢字の大きさ
+%       初期値を 1em とする
+    , yokoaki .fp_set:N = \g_kanbun_yokoaki_fp
+    , yokoaki .initial:n = { 2 }
+%       yokoakiは漢字間の横方向の空きをルビサイズを基準とした値で表現
+%       初期値を 2 とする
+    , tateaki .fp_set:N = \g_kanbun_tateaki_fp
+    , tateaki .initial:n = { 2 }
+%       tateakは漢字間の縦方向の空きをルビサイズを基準とした値で表現
+%       初期値を 2 とする
+    , okuriintrusion .fp_set:N = \g_kanbun_okuriintrusion_fp
+    , okuriintrusion .initial:n = { 1 }
+        % okuriintrusionは送り仮名の侵入量をルビサイズを基準とした値で表現
+%       初期値を 2 とする
+    , kumi .str_set:N = \g_kanbun_kumi_str
+    , kumi .initial:n = { aki }
+    , aki .code:n = \keys_set:nn { kanbun } { kumi = aki }
+    , beta .code:n = \keys_set:nn { kanbun } { kumi = beta }
+%       kumiは組版方法のこと
+%       aki は文字間に均一な間隔を設定する組版
+%       beta は文字間には間隔を設定せずベタ組とする組版
+%       aki と指定しても kumi = aki と指定しても同じという意味
+    ,longokurigana .choice:
+    ,longokurigana / side .code:n = \bool_gset_false:N \g_kanbun_long_okurigana_below_bool,
+    ,longokurigana .default:n = side
+    ,longokurigana / below .code:n = \bool_gset_true:N \g_kanbun_long_okurigana_below_bool,
+    ,longokurigana .initial:n = side
+        %   \KanbunSetup{longokurigana=below} とすると長い送り仮名も下に配置される
+        %   \KanbunSetup{longokurigana=side} とすると従来通りの横出し配置になる
+}
+% -----------------------------------------------------------------------------------------
+%   :N - 変数名を指定 --> 引数は必ず \で始まる制御シーケンス(変数)でなければならない)
+%          変数名そのものを渡すことを変数をクリアするという
+%       \tl_clear:N \l_my_tl    正しい使い方
+%       \tl_clear:N {my text}   エラー！変数名ではなくテキスト
+%       \tl_clear:N "abc"       エラー！変数名ではなく文字列
+%   :n - テキストを指定 --> 引数は{} で囲まれた任意のテキスト
+%       \tl_clear:n {my text}   正しい使い方
+%   :Nn - 変数名とテキスト引数の組み合わせ
+%       \tl_set:Nn \l_my_name_tl {John Smith}
+%       ↑ 第1引数は変数名(:N)、第2引数はテキスト(:n)であることを示す
+%   :NV - 変数名と変数の値の組み合わせ
+%       \tl_set:NV \l_second_tl \l_first_tl
+%       ↑ :NV とは第1引数が変数名、第2引数が変数の値であることを示す
+%       これは変数の値を別の変数に渡す場合に用いる
+%   (例)
+%   \tl_new:N \l_first_tl            --> \l_first_tl  という変数を宣言する
+%   \tl_new:N \l_second_tl           --> \l_second_tl という変数を宣言する
+%   \tl_set:Nn \l_first_tl { Hello } --> \l_first_tlに "Hello" という値を渡す
+%
+%   \l_second_tl に \l_first_tl の値を渡す正しい方法
+%   \tl_set:NV \l_second_tl \l_first_tl --> この場合、\l_second_tl の内容は、
+%   "Hello" となる
+%
+%   間違った方法
+%   \tl_set:Nn \l_second_tl { \l_first_tl } この場合、\l_second_tl の内容は、
+%   "Hello" ではなく、"\l_first_tl" となる
+%
+%   以下のような設定もあるが、ここでは使われていないので説明は割愛する
+%     :c - 文字列から構築された変数名
+%     :V - 変数の値
+%     :o - 一度だけ展開
+%     :x - 完全に展開
+% ------------------------------------------------------------------------------
+% 定義したキーを有効化
+% ------------------------------------------------------------------------------
+\ProcessKeysOptions { kanbun }
+% \keys_define:nn で定義したキーを有効にするためのコマンド
+% ------------------------------------------------------------------------------
+% コマンド、変数を定義
+% ------------------------------------------------------------------------------
+\DeclareDocumentCommand \setkanbun { m } {
+  \keys_set:nn { kanbun } { #1 }
+%   \DeclareDocumentCommand は同名のコマンドが先に存在しても警告なしに上書きする
+%   これに対して、\NewDocumentCommand では警告が発せられる
+%
+%   引数の仕様について { m } とは m は必須引数（mandatory）を意味する
+%   したがって、ここでは１つの必須引数を必要とするコマンドとなる
+%
+%   { \keys_set:nn { kanbun } { #1 } } とは
+%   ユーザーが指定した引数 #1 を \keys_set:nn に渡することを意味する
+%
+%   つまり \setkanbun{kunten=true, size=9} と書くと \setkanbun コマンドが実行され、
+%   引数 kunten=true, size=9 が #1 として渡される
+%   これは \keys_set:nn { kanbun } { kunten=true, size=9 } と宣言することと同義
+}
+% \tl_set:Nn \g_kanbun_rubyfontsize_rubyfontcmd_tl {
+%     \g_kanbun_rubyfontcmd_tl\fontsize{\fp_eval:n
+%     {1/\g_kanbun_scale_fp }\g_kanbun_zw_dim}{0pt}\selectfont
+% }
+\tl_set:Nn \g_kanbun_rubyfontsize_rubyfontcmd_tl {
+    \g_kanbun_rubyfontcmd_tl\fontsize{\fp_eval:n
+    {1/\g_kanbun_scale_fp }\g_kanbun_zw_dim}{0pt}\selectfont
+}
+%   ちょっと分かりにくいので分解して説明する
+%   \tl_set:Nn
+%   第1引数: 設定対象の変数名
+%   \g_kanbun_rubyfontsize_rubyfontcmd_tl
+%   第2引数: 設定する内容
+%   \g_kanbun_rubyfontcmd_tl\fontsize{\fp_eval:n{1/\g_kanbun_scale_fp}\g_kanbun_zw_dim}{0pt}\selectfont
+%   a. \g_kanbun_rubyfontcmd_tl : ルビ用のフォントコマンド
+%        例: \normalfontや\sffamilyなど
+%   b. \fontsize{...}{0pt} : LaTeX のフォントサイズ設定コマンド
+%        第1引数: フォントサイズ 第2引数: 行送り（ここでは 0pt）
+%   c. \fp_eval:n {1/\g_kanbun_scale_fp }\g_kanbun_zw_dim
+%        浮動小数点計算を行う 1/\g_kanbun_scale_fp （スケール値の逆数）
+%        の値に \g_kanbun_zw_dim（全角文字の幅）を掛ける
+%   d. \selectfont フォント設定を有効にするコマンド
+%
+%   この命令が実行されると \g_kanbun_rubyfontsize_rubyfontcmd_tl 変数には、
+%   \g_kanbun_scale_fp の逆数を計算する（例: \g_kanbun_scale_fp  が 2.0 なら0.5 となる）
+%   その値に \g_kanbun_zw_dim（全角文字の幅）を掛けた値がフォントサイズとして設定される
+%   そして、\g_kanbun_rubyfontcmd_tl で指定されたフォントスタイルを適用し、
+%   \selectfont でフォント設定を確定する
+%
+%   たとえば、次のような値が設定されている場合、
+%   \g_kanbun_rubyfontcmd_tl = \normalfont
+%   kanbun_scale = 0.5
+%   \g_kanbun_zw_dim = 10pt
+%   \normalfont\fontsize{5pt}{0pt}\selectfont
+%   通常のフォントで、サイズ5pt、行送り0ptという設定になる
+%
+\tl_set:Nn \g_kanbun_tateten_width_tl { 1/15 }
+%   竪点（漢字をつなぐ縦の線）の幅
+%
+\tl_set:Nn \g_kanbun_zwtosp_tl {
+  \fp_eval:n { \dim_ratio:nn { 1 \g_kanbun_zw_dim } { 1 sp } }
+  % \dim_ratio:nn {寸法1} {寸法2}とは２つの寸法の比率を計算する関数
+  % つまり1 \g_kanbun_zw_dim は何 sp に相当するかを計算している
+  % そして、\fp_eval:n { ... }で、計算結果を浮動小数点数として処理する
+  % 例えば、\g_kanbun_zw_dim が 10pt だとすると 1pt = 65536sp なので、
+  % この計算結果は約 655360 になる
+}
+%
+\tl_set:Nx \l_tmpa_for_lua_tl { \tl_use:N \g_kanbun_zwtosp_tl }
+\tl_set:Nx \l_tmpb_for_lua_tl { \tl_to_str:N \l_tmpa_for_lua_tl }
+%   Luaに変数を安全に渡せる形式に変換する
+%   LaTeXとLuaは異なる言語であり構文規則が異なる
+%   このため、次のように２段階で変換することにより、
+%   LaTeXの変数内容をLuaが安全に処理できる形式とする
+%   1. マクロ展開: \g_kanbun_zwtosp_tl の中に他のマクロや変数が含まれている場合、
+%      実際の値に展開しておく
+%      これにより、Lua側での解釈の問題を避ける
+%      \tl_set:Nx \l_tmpa_for_lua_tl { \tl_use:N \g_kanbun_zwtosp_tl }
+%   2. 文字列変換: LaTeXの制御文字（\, {, } など）がそのままLuaに渡ると、
+%      Luaで構文エラーとなる可能性がある
+%      そこでLaTeX特殊文字(\{}等)を Lua 側で安全な形式に変換しておく
+%      （特殊文字ではなく普通の文字として認識させる）
+%
+\tl_set:Nn \l__kanbun_unit_glue_tl {
+  \str_if_eq:VnTF \g_kanbun_kumi_str { aki } {
+  % 漢文組版における文字間のスペース（グルー）を制御する
+  % \str_if_eq:VnTF \g_kanbun_kumi_str { aki } とは、変数 \g_kanbun_kumi_str
+  % の値が文字列 "aki" と等しいかどうかを判定
+  %
+  %   \g_kanbun_kumi_str = "aki" の場合
+  \penalty0
+  % \penalty0 とは改行の可能性を示すペナルティ値を設定するが、値が 0 なので、
+  % この位置での改行は許可される。しかし、改行が推奨されるわけでもなく、抑制
+  % もされない
+  } {
+  % \g_kanbun_kumi_str = "aki" でない場合
+  \hskip 0\g_kanbun_zw_dim plus 0.25\g_kanbun_zw_dim minus 0\g_kanbun_zw_dim
+  % 通常は隙間なし（0\g_kanbun_zw_dim）
+  % 必要に応じて全角の1/4まで伸ばすことができる (plus 0.25\g_kanbun_zw_dim)
+  % 縮めることはない（minus 0\g_kanbun_zw_dim）
+  }
+}
+%
+\tl_set:Nn \l__kanbun_punct_glue_tl {
+  \hskip 0\g_kanbun_zw_dim plus 0.5\g_kanbun_zw_dim minus 0\g_kanbun_zw_dim
+  % 漢文組版における句読点（句読符）の後のスペース（グルー）を制御
+  % 通常状態では隙間なし（0\g_kanbun_zw_dim）
+  % 必要に応じて最大で全角の半分まで伸ばすことができる (0.5\g_kanbun_zw_dim)
+  % 縮めることはない（minus 0\g_kanbun_zw_dim）
+}
+\NewDocumentCommand { \kanbun_ensure_height } { m m } {
+    \vbox to #1{\vss{#2}\vss}
+}
+%   指定した高さのボックスに対して、その内容を中央揃えで配置するコマンド
+%
+%   \vbox to #1 とは (#1) で指定した高さを持つボックスを作成する
+%   \vss{#2}\vss
+%   内容の前後に \vss を配置することで内容{#2}を垂直方向に中央揃えとする
+%   このコマンドでは、内容が指定高さより小さい場合には上下に均等にスペースが追加
+%   される
+%   一方、内容が指定高さより大きい場合には内容がボックスからはみ出す可能性がある
+%   ----------------------------------------------------------------------------
+%   次の関数に出てくるボックスレジスタに関する説明
+%   ----------------------------------------------------------------------------
+%   ボックスレジスタとは文字、記号、スペース、その他の素材を組み合わせた「箱」の
+%   ようなもので内容物を一つの単位として扱い、配置や操作が可能となっている
+%   ボックスレジスタの特徴は、
+%   1) 寸法を持つ: 幅、高さ、深さの情報を保持
+%   2) 内容を保持: テキストや他のボックスを格納可能
+%   3) 不可分    : 内部構造を保ったまま一つの単位として扱われる
+%   4) 再利用可能: 同じ内容を複数回使用できる
+%   ボックスレジスタの主な種類は、
+%   1) \hbox（水平ボックス）: 内容を水平方向に並べる
+%   2) \vbox（垂直ボックス）: 内容を垂直方向に積み重ねる
+%   3) \vtop: \vboxに似ているが、基準点が最上部にある垂直ボックス
+%   4) \vcente: 数式モードで使用され、内容を垂直方向に中央揃えにする
+%   ボックスレジスタの使用方法は、
+%   定義と割り当て
+%   \newbox\mybox      % 新しいボックスレジスタを割り当てる
+%   内容の格納方法
+%   \setbox\mybox=\hbox{ボックスの内容}  % 水平ボックスとして内容を格納
+%   \setbox\mybox=\vbox{                 % 垂直ボックスとして内容を格納
+%     \hbox{一行目}
+%     \hbox{二行目}
+%   }
+%   内容の使用方法
+%   \box\mybox       % ボックスの内容を出力（元のボックスは空にする）
+%   \copy\mybox      % ボックスの内容を出力（元のボックスは保持）
+%   \wd\mybox        % ボックスの幅を参照
+%   \ht\mybox        % ボックスの高さを参照
+%   \dp\mybox        % ボックスの深さを参照
+%   寸法の操作
+%   \wd\mybox=100pt  % ボックスの幅を100ptに設定
+%   例1: 内容の中央揃え
+%   \setbox\centeredbox=\hbox{中央に配置したいテキスト}
+%   \centerline{\copy\centeredbox}
+%   例2: 特定の幅に調整したボックス
+%   \setbox\fixedwidthbox=\hbox{元のテキスト}
+%   \setbox\fixedwidthbox=\hbox to 5cm{\hss\copy\fixedwidthbox\hss}
+%   \box\fixedwidthbox
+%   例3: 漢文組版での使用例
+%   \newbox\kanjiunit
+%   \setbox\kanjiunit=\vbox{
+%     \hbox{\small 返り点}
+%     \hbox{漢}
+%   }
+%   \box\kanjiunit
+\NewDocumentCommand { \kanjiunit } { m m m m m m } {
+  % 二の字点、右側の句読点、中央の句読点のためのトークンリストを初期化
+  \tl_set:Nn \l_kanbun_ninojiten_punct_tl {}
+  \tl_set:Nn \l_kanbun_right_punct_tl {}
+  \tl_set:Nn \l_kanbun_central_punct_tl  {}
+
+  % 4番目の引数から句読点情報を処理
+  % 中央の句読点のボックスを設定
+  % 組み方が「aki」の場合とそうでない場合で異なる配置をする
+  \process_punct{ #4 }
+  \tl_set:Nn \l_kanbun_central_punct_box_tl {
+    \kanbun_ensure_height{\g_kanbun_zw_dim} {
+      \str_if_eq:VnTF \g_kanbun_kumi_str { aki } {
+        \hbox{
+          \kern -0.25\g_kanbun_zw_dim
+          \hbox{
+            \kern 1.3\g_kanbun_zw_dim{
+              \hbox to \fp_eval:n { \g_kanbun_tateaki_fp/\g_kanbun_scale_fp  }\g_kanbun_zw_dim{
+                \hss{\l_kanbun_central_punct_tl }\hss
+              }
+            }
+          }
+        }
+      }
+	  {
+       \hbox{
+         \kern -0.25\g_kanbun_zw_dim
+         \hbox{\kern 1.3\g_kanbun_zw_dim{\l_kanbun_central_punct_tl }}
+       }
+     }
+    }
+  }
+  % 左側の句読点のためのファントムスペースを設定する
+  % 組み方が「beta」で左側の句読点がある場合にスペースを確保する
+  % 日本語における漢文訓読ではたぶん不要な処理
+  \tl_set:Nn \l_kanbun_left_punct_phantom_tl {
+    \kanbun_ensure_height{\g_kanbun_zw_dim} {
+      \str_if_eq:VnTF \g_kanbun_kumi_str { aki } { } {
+        \str_if_eq:nnTF { #2 } { } { } {
+          \hbox{\phantom{\hbox to 0.5\g_kanbun_zw_dim{\hss#2\hfil}}}
+        }
+      }
+    }
+  }
+
+% 右側の句読点のボックスを設定する
+% 右側の句読点がある場合、適切なスペースと共に配置する
+  \tl_set:Nn \l_kanbun_right_punct_box_tl {
+    \kanbun_ensure_height{\g_kanbun_zw_dim} {
+      \vfill % make sure punct stay on baseline in yoko direction (xeCJK)
+      \str_if_eq:VnTF \l_kanbun_right_punct_tl { } { } {
+        \hbox{
+          \kern \g_kanbun_zw_dim
+          \bool_if:NTF \l_kanbun_first_right_punct_is_kagi_bool {
+              \phantom{ \g_kanbun_rubyfontsize_rubyfontcmd_tl\kaeriten{#5} }
+          } { }
+          \l_kanbun_right_punct_tl
+        }
+      }
+    }
+  }
+
+  % 漢字ユニットの内容を設定する
+  \tl_set:Nn \l_kanbun_unit_content_tl {
+	% 左側の句読点の幅を補償するためのファントムスペースを配置する
+    \l_kanbun_left_punct_phantom_tl % compensate for width of left punct
+
+	% 右側のかな（第1引数）を配置する
+    \vbox{
+      \bool_set_true:N \l_kanbun_is_right_kana_bool
+      \kanbun_ensure_height{ 0pt }{
+        \hbox{\g_kanbun_rubyfontsize_rubyfontcmd_tl{#1}}
+      } % ↑右側のかな
+
+	  % 行間のスキップを無効にし、垂右側のかなと次の要素の間に垂直スペースを挿入する
+      \nointerlineskip %
+      \vspace*{\fp_eval:n { 0.5/\g_kanbun_scale_fp  }\g_kanbun_zw_dim}
+	  % ↑右側のかなの下のスペース
+
+	  %	左側の句読点（第2引数）を配置する
+      \kanbun_ensure_height{\g_kanbun_zw_dim}{\llap{#2}}
+	  % ↑左側の句読点
+
+	  % 行間のスキップを無効にし、垂直位置を調整する
+      \nointerlineskip %
+      \vspace*{-1 \g_kanbun_zw_dim}
+        %      ↑
+        % 右の振りかな、送りかなをずらすには、上の-1の値を変更する
+        % 右にずらすにはマイナス方向へ、左にずらすにはプラス方向へ
+        % 文字の相対位置は、かなを起点にして決まっているので送りかなを右にずらすのではなく、
+        % 漢字を左にずらして実現している
+
+	  % 漢字（第3引数）をする
+      \kanbun_ensure_height{\g_kanbun_zw_dim}{
+        \hbox to \g_kanbun_zw_dim{\hss{#3}\hss}
+      } % kanji
+
+      % 水平方向のスキップを無効にし、水平位置を調整
+      % 二の字点（〻）の位置をずらすには－1の値を変更する
+      % 右にずらすにはマイナス方向へ、左にずらすにはプラス方向へ
+      % 混乱しやすいが、\vspace は縦書きでは左右方向のスペースとして働く
+      \nointerlineskip %
+      \vspace*{-1 \g_kanbun_zw_dim}
+
+      % 二の字点（〻）を配置する
+      \kanbun_ensure_height{\fp_eval:n { 1/\g_kanbun_scale_fp  }\g_kanbun_zw_dim}{
+        \hbox{\kern \g_kanbun_zw_dim{\l_kanbun_ninojiten_punct_tl}}
+      } % ninojiten
+
+      % 右側の句読点を配置する
+      \nointerlineskip %
+      \vspace*{\fp_eval:n { -1/\g_kanbun_scale_fp  }\g_kanbun_zw_dim}
+      \l_kanbun_right_punct_box_tl % right punct
+
+      % 中央の句読点を配置する
+      \nointerlineskip %
+      \vspace*{-\g_kanbun_zw_dim}
+      \l_kanbun_central_punct_box_tl % central punct
+
+      % 行間のスキップを無効にし、垂直位置を調整する
+      \nointerlineskip %
+      \vspace*{ \fp_eval:n { -0.95/\g_kanbun_scale_fp  }\g_kanbun_zw_dim }
+      % 返り点の位置の位置をずらすには、上の-0.95の値を変更する。
+      % 右にずらすにはマイナス方向へ、左にずらすにはプラス方向へ
+
+      % 返り点（第5引数）を配置する
+      \kanbun_ensure_height{\fp_eval:n { 1/\g_kanbun_scale_fp  }\g_kanbun_zw_dim}{
+        \hbox{\g_kanbun_rubyfontsize_rubyfontcmd_tl\kern \g_kanbun_zw_dim{\kaeriten{#5}}}
+      } % kaeriten
+
+      \nointerlineskip %
+      % 左送りかなと漢字の間隔を広げるには 0.53 の値を大きくする。狭くするには、この値を小さくする
+      \vspace*{\fp_eval:n { 0.53/\g_kanbun_scale_fp  }\g_kanbun_zw_dim}
+
+      % 左側のかな（第6引数）を配置する
+      \bool_set_false:N \l_kanbun_is_right_kana_bool
+      \kanbun_ensure_height{ 0pt }{
+        \hbox{\g_kanbun_rubyfontsize_rubyfontcmd_tl{#6}}
+      } % left kana
+    }
+  }
+  % 組版が aki 場合、
+  \str_if_eq:VnTF \g_kanbun_kumi_str { aki } {
+    \setbox\l_kanbun_current_kanjiunit_box \hbox to \g_kanbun_zw_dim{ \l_kanbun_unit_content_tl \hss}
+  } {
+    \setbox\l_kanbun_current_kanjiunit_box \hbox{ \l_kanbun_unit_content_tl }
+  }
+  %
+  % output
+  % 組版が beta で左側の句読点がある場合に句読点のグルーを挿入する
+  \str_if_eq:VnTF \g_kanbun_kumi_str { aki } { } {
+    \str_if_eq:nnTF { #2 } { } { } {
+      \l__kanbun_punct_glue_tl
+    }
+  }
+  \nobreak
+  % 組版が aki 場合、漢字ユニットのボックスを使用して水平スペースを挿入する
+  % 組版が beta の場合、任意の改行ポイントを設定する
+  \str_if_eq:VnTF \g_kanbun_kumi_str { aki } {
+    \usebox\l_kanbun_current_kanjiunit_box
+    \hskip\fp_eval:n { \g_kanbun_tateaki_fp/\g_kanbun_scale_fp  }\g_kanbun_zw_dim
+  } {
+    \discretionary{
+      \usebox\l_kanbun_current_kanjiunit_box
+      \kern\dim_eval:n { \g_kanbun_zw_dim - \box_wd:N \l_kanbun_current_kanjiunit_box }
+    } {
+      %
+    } {
+      \usebox\l_kanbun_current_kanjiunit_box
+    }
+  }
+  \nobreak
+  % 組版が beta で右側の句読点がある場合に句読点のグルーを挿入する
+  \str_if_eq:VnTF \g_kanbun_kumi_str { aki } { } {
+    \str_if_eq:VnTF \l_kanbun_right_punct_tl { } { } {
+      \l__kanbun_punct_glue_tl
+    }
+  }
+  % 改行を禁止し、ユニットのグルーを挿入して、コマンド定義を終了する
+  \nobreak
+  \l__kanbun_unit_glue_tl
+}
+
+% 寸法を浮動小数点数に変換し、四捨五入する
+\cs_new:Nn \kanbun_dim_to_fp_and_round:n {
+    \fp_eval:n { round( \dim_to_fp:n { #1 }, 0 ) }
+}
+% この関数は、（#1）を浮動小数点数に変換し四捨五入する
+% \dim_to_fp:n { #1 }: 次元値を浮動小数点数に変換する
+% round(..., 0): 浮動小数点数を四捨五入する
+% \fp_eval:n {...}: 計算式に基づいて、実際の計算を行い、TeXの処理に戻す
+%
+\cs_new:Nn \kanbun_typeset_normal_kana:nn {
+  \dim_compare:nNnTF { \l_kanbun_furi_len_dim } < { \fp_eval:n { 1-\g_kanbun_okuriintrusion_fp/\g_kanbun_scale_fp  }\g_kanbun_zw_dim }
+  {
+    \makebox[\fp_eval:n { 1-\g_kanbun_okuriintrusion_fp/\g_kanbun_scale_fp  }\g_kanbun_zw_dim][l]{ #1 }
+  }
+  { #1 }
+  #2
+}
+% \dim_compare:nNnTF: ふりがなの長さ（\l_kanbun_furi_len_dim）が、
+% (1 - \g_kanbun_okuriintrusion_fp / \g_kanbun_scale_fp)}\g_kanbun_zw_dim より小さいかどうかを比較する
+% 比較の結果、条件が真の場合は、#1（かな）を指定された高さで上寄せで配置した箱をつくる
+% \makebox[幅][位置]{内容}
+% 幅の指定: 5cm, 2in, 0.5\textwidth
+% 位置の指定: 本来、l: 左揃え（デフォルト）、r: 右揃え、c: 中央揃え、s: 内容を均等に配置を表すが、
+% 縦書きでは左は上寄せ、右は下寄せを意味する
+% 条件が偽の場合は、つまりふりがなが短ければ、上にような箱に#1の内容を配置するが、長ければ何もしない
+% #2は追加の内容を含む引数
+
+\cs_new:Nn \kanbun_typeset_long_kana_by_raising_okurigana:nn {
+  \makebox[ \dim_eval:n {\fp_eval:n { 1 + \g_kanbun_tateaki_fp / \g_kanbun_scale_fp  }\g_kanbun_zw_dim - \l_kanbun_okuri_len_dim} ][l]{ #1 }
+  #2
+}
+% この関数は長い送り仮名を組版する際に送り仮名を上げる処理を行う
+% {1 + \g_kanbun_tateaki_fp / \g_kanbun_scale_fp}\g_kanbun_zw_dim から
+% 送り仮名の長さ（\l_kanbun_okuri_len_dim）を引き算した高さで上寄せで配置した箱をつくる
+%
+
+\cs_new:Nn \kanbun_typeset_long_kana:n {
+% 入力文字列を設定
+  \str_set:Nn \l_kanbun_furiokuri_all_str { #1 }
+    % 最初に全体の長さを測定
+    \hbox_set:Nn \l_kanbun_furiokuri_tmp_box { \l_kanbun_furiokuri_all_str }
+    \dim_set:Nn \l_kanbun_total_length_dim { \box_wd:N \l_kanbun_furiokuri_tmp_box }
+    % 目標の長さを計算
+    \dim_set:Nn \l_kanbun_target_length_dim{
+      \fp_eval:n {
+        (\g_kanbun_okuriintrusion_fp + \g_kanbun_tateaki_fp) / \g_kanbun_scale_fp
+      }\g_kanbun_zw_dim
+    }
+% 分割が必要かどうかをチェック
+  \bool_if:nTF { \dim_compare_p:nNn { \l_kanbun_total_length_dim } > { \l_kanbun_target_length_dim } } {
+    % 分割が必要な場合の処理
+    \int_set:Nn \l_kanbun_furiokuri_firstline_start_index_int { -1 }
+    \dim_set:Nn \l_kanbun_furiokuri_firstline_len_dim { 0pt }
+    \int_zero:N \l_kanbun_tmpc_int
+    % 二分探索のような方法で分割点を探す
+    \int_set:Nn \l_kanbun_split_position_int { \str_count:N \l_kanbun_furiokuri_all_str }
+    \int_set:Nn \l_kanbun_tmpc_int { 1 }
+      \bool_do_until:nn { \int_compare_p:nNn { \l_kanbun_tmpc_int } > { \l_kanbun_split_position_int } } {
+        % 中間点を計算
+        \int_set:Nn \l_kanbun_tmpc_int { \int_div_truncate:nn { \l_kanbun_tmpc_int + \l_kanbun_split_position_int } { 2 } }
+        % この分割点での長さをチェック
+        \hbox_set:Nn \l_kanbun_furiokuri_tmp_box {
+          \str_range:Nnn \l_kanbun_furiokuri_all_str { -\l_kanbun_tmpc_int } { -1 }
+        }
+        \dim_set:Nn \l_kanbun_furiokuri_firstline_len_dim { \box_wd:N \l_kanbun_furiokuri_tmp_box }
+
+        % 条件に基づいて探索範囲を更新
+        \bool_if:nTF { \dim_compare_p:nNn { \l_kanbun_furiokuri_firstline_len_dim } < { \l_kanbun_target_length_dim } } {
+          \int_set:Nn \l_kanbun_split_position_int { \l_kanbun_tmpc_int - 1 }
+        } {
+          \int_set:Nn \l_kanbun_tmpc_int { \l_kanbun_tmpc_int + 1 }
+        }
+
+        % 安全のための繰り返し回数制限
+        \int_incr:N \l_kanbun_tmpc_int
+        \bool_if:nT { \int_compare_p:nNn { \l_kanbun_tmpc_int } > { 50 } } {
+          \int_set:Nn \l_kanbun_tmpc_int { \int_div_truncate:nn { \str_count:N \l_kanbun_furiokuri_all_str } { 2 } }
+          \bool_break:n { \c_true_bool }
+        }
+      }
+      \int_set:Nn \l_kanbun_furiokuri_firstline_start_index_int { -\l_kanbun_tmpc_int }
+      % output - 分割したテキストを出力
+      \rlap{
+        \raisebox{
+          \bool_if:NTF \l_kanbun_is_right_kana_bool
+          { }
+          { - }
+          \fp_eval:n { 1 / \g_kanbun_scale_fp }\g_kanbun_zw_dim
+      }[0pt][0pt]{
+          \kern \fp_eval:n { .5/\g_kanbun_scale_fp }\g_kanbun_zw_dim
+          \kern \fp_to_dim:n {
+            min(
+              0,
+              \kanbun_dim_to_fp_and_round:n {
+                 \fp_eval:n {
+                   2 * (\g_kanbun_okuriintrusion_fp + \g_kanbun_tateaki_fp) / \g_kanbun_scale_fp
+                 }\g_kanbun_zw_dim - \l_kanbun_furi_len_dim - \l_kanbun_okuri_len_dim
+              }
+            )
+          }
+          \str_range:Nnn \l_kanbun_furiokuri_all_str { 1 } { \l_kanbun_furiokuri_firstline_start_index_int - 1 }
+        }
+      }
+    \kern \fp_eval:n { 1-\g_kanbun_okuriintrusion_fp/\g_kanbun_scale_fp }\g_kanbun_zw_dim
+    \str_range:Nnn \l_kanbun_furiokuri_all_str { \l_kanbun_furiokuri_firstline_start_index_int } { -1 }
+  } {
+    % 分割が不要な場合はそのまま出力
+    \l_kanbun_furiokuri_all_str
+  }
+}
+\NewDocumentCommand { \furiokuri } { m m } {
+  \hbox_set:Nn \l_kanbun_furiokuri_tmp_box { #1 }
+  \dim_set:Nn \l_kanbun_furi_len_dim { \box_wd:N \l_kanbun_furiokuri_tmp_box }
+  \hbox_set:Nn \l_kanbun_furiokuri_tmp_box { #2 }
+  \dim_set:Nn \l_kanbun_okuri_len_dim { \box_wd:N \l_kanbun_furiokuri_tmp_box }
+  \str_if_eq:VnTF \g_kanbun_kumi_str { aki } {
+    \fp_compare:nTF {
+        \kanbun_dim_to_fp_and_round:n { \l_kanbun_furi_len_dim + \l_kanbun_okuri_len_dim  } >
+        \kanbun_dim_to_fp_and_round:n {
+          \fp_eval:n { 1 + \g_kanbun_tateaki_fp / \g_kanbun_scale_fp  }\g_kanbun_zw_dim
+        }
+    } {
+      \kanbun_typeset_long_kana:n { #1 #2 }
+    } {
+      \fp_compare:nTF {
+        \kanbun_dim_to_fp_and_round:n { \l_kanbun_okuri_len_dim } >=
+            \kanbun_dim_to_fp_and_round:n {
+              \fp_eval:n { (\g_kanbun_okuriintrusion_fp + \g_kanbun_tateaki_fp) / \g_kanbun_scale_fp  }\g_kanbun_zw_dim
+        }
+      } {
+        \fp_compare:nTF {
+          \kanbun_dim_to_fp_and_round:n { \l_kanbun_okuri_len_dim } <=
+          \kanbun_dim_to_fp_and_round:n {
+            \fp_eval:n { 1 + (\g_kanbun_tateaki_fp - 1) / \g_kanbun_scale_fp  }\g_kanbun_zw_dim
+          }
+        } {
+          \kanbun_typeset_long_kana_by_raising_okurigana:nn { #1 } { #2 }
+        } {
+          \kanbun_typeset_long_kana:n { #1 #2 }
+        }
+      } {
+        \kanbun_typeset_normal_kana:nn { #1 } { #2 }
+      }
+    }
+  } {
+    \kanbun_typeset_normal_kana:nn { #1 } { #2 }
+  }
+}
+% 縦書き専用の文頭レ点コマンド
+% \buntoureten デフォルトで\buntoureten[0.42em]
+% 0.42emはレ点を右に動かした大きさ
+% もし、本体文字を上下に動かしたい場合には、\hspace{0em}の値を変える
+% 上に動かしたい場合はマイナス方向へ、下に動かしたい場合はプラス方向へ
+\NewDocumentCommand{\buntoureten}{O{0.42em}}{%
+  \hspace{0em}{\hbox{%
+    \llap{\raisebox{#1}[0em][0em]{\g_kanbun_rubyfontsize_rubyfontcmd_tl レ}}%
+  }}%
+}
+\NewDocumentCommand { \kaeriten } { m } {
+  \tl_set:Nn \l_kanbun_kaeriten_output_tl { #1 }
+  \str_case:VnTF \l_kanbun_kaeriten_output_tl {
+    % When using U+30EC: KATAKANA LETTER RE
+    { 一レ } {
+      \tl_set:Nn \l_kanbun_kaeriten_output_tl {
+        \kern \fp_eval:n {-0.25/\g_kanbun_scale_fp }\g_kanbun_zw_dim
+        一\kern \fp_eval:n {-0.75/\g_kanbun_scale_fp }\g_kanbun_zw_dim レ
+      }
+    }
+    { 甲レ } {
+      \tl_set:Nn \l_kanbun_kaeriten_output_tl {
+        甲\kern \fp_eval:n {-0.25/\g_kanbun_scale_fp }\g_kanbun_zw_dim レ
+      }
+    }
+    { 上レ } {
+      \tl_set:Nn \l_kanbun_kaeriten_output_tl {
+        上\kern \fp_eval:n {-0.25/\g_kanbun_scale_fp }\g_kanbun_zw_dim レ
+      }
+    }
+    { 天レ } {
+      \tl_set:Nn \l_kanbun_kaeriten_output_tl {
+        天\kern \fp_eval:n {-0.25/\g_kanbun_scale_fp }\g_kanbun_zw_dim レ
+      }
+    }
+    % When using U+3191: IDEOGRAPHIC ANNOTATION REVERSE MARK
+    % 日本語環境ではおそらく使わないと思うが残しておく
+    { 一㆑ } {
+      \tl_set:Nn \l_kanbun_kaeriten_output_tl {
+        \kern \fp_eval:n {-0.25/\g_kanbun_scale_fp }\g_kanbun_zw_dim
+        一\kern \fp_eval:n {-0.75/\g_kanbun_scale_fp }\g_kanbun_zw_dim  ㆑
+      }
+    }
+    { 甲㆑ } {
+      \tl_set:Nn \l_kanbun_kaeriten_output_tl {
+        甲\kern \fp_eval:n {-0.25/\g_kanbun_scale_fp }\g_kanbun_zw_dim  ㆑
+      }
+    }
+    { 上㆑ } {
+      \tl_set:Nn \l_kanbun_kaeriten_output_tl {
+        上\kern \fp_eval:n {-0.25/\g_kanbun_scale_fp }\g_kanbun_zw_dim  ㆑
+      }
+    }
+    { 天㆑ } {
+      \tl_set:Nn \l_kanbun_kaeriten_output_tl {
+        天\kern \fp_eval:n {-0.25/\g_kanbun_scale_fp }\g_kanbun_zw_dim  ㆑
+      }
+    }
+  }
+  \tl_use:N \l_kanbun_kaeriten_output_tl
+}
+
+\NewDocumentCommand { \process_punct_map } { m } {
+  \str_case:nnTF { #1 } {
+    { — } { \tl_put_right:Nn \l_kanbun_central_punct_tl  { \tateten }}
+    { ― } { \tl_put_right:Nn \l_kanbun_central_punct_tl  { \tateten }}
+    { ㆐ } { \tl_put_right:Nn \l_kanbun_central_punct_tl  { \tateten }}
+    { :  } { \tl_put_right:Nn \l_kanbun_right_punct_tl {
+               \hbox to 0.5\g_kanbun_zw_dim {\hss{: }\hss}
+             }
+           }
+    { ・ } { \tl_put_right:Nn \l_kanbun_right_punct_tl {
+               \hbox to 0.5\g_kanbun_zw_dim {\hss{・}\hss}
+             }
+           }
+    { … } { \tl_put_right:Nn \l_kanbun_central_punct_tl  {
+               \hbox to \g_kanbun_zw_dim {\hss{…}\hss}
+             }
+           }
+    { ！ } { \tl_put_right:Nn \l_kanbun_central_punct_tl  {
+                \hbox to \g_kanbun_zw_dim {\hss{！}\hss}
+             }
+           }
+    { ？ } { \tl_put_right:Nn \l_kanbun_central_punct_tl  {
+                \hbox to \g_kanbun_zw_dim {\hss{？}\hss}
+             }
+           }
+    { 〻 } {
+             \tl_put_right:Nn \l_kanbun_ninojiten_punct_tl { \ninojiten }
+             \tl_put_right:Nn \l_kanbun_right_punct_tl { \phantom{\ninojiten} }
+           }
+  } { }
+  {\tl_put_right:Nn \l_kanbun_right_punct_tl { \hbox to 0.5\g_kanbun_zw_dim {\hfil#1\hss} } }
+}
+
+\NewDocumentCommand { \process_punct } { m } {
+  \bool_set_false:N \l_kanbun_first_right_punct_is_kagi_bool
+  \str_case:fnTF { \str_range:nnn { #1 } { 1 } { 1 } } {
+    { 」 } { \bool_set_true:N \l_kanbun_first_right_punct_is_kagi_bool }
+    { 』 } { \bool_set_true:N \l_kanbun_first_right_punct_is_kagi_bool }
+  } { } { }
+  \str_map_function:nN { #1 } \process_punct_map
+}
+
+\NewDocumentCommand { \multifuriokuri } { O{2\g_kanbun_zw_dim } m m } {
+  \g_kanbun_rubyfontcmd_tl
+  \kern \fp_eval:n { -(#1) }\g_kanbun_zw_dim
+  \makebox[\fp_eval:n { (#1) + 1 - \g_kanbun_okuriintrusion_fp/\g_kanbun_scale_fp  }\g_kanbun_zw_dim ][s]{#2}
+  #3
+}
+
+% these commands are used as punct
+\NewDocumentCommand { \tateten } {} {
+  \str_if_eq:VnTF \g_kanbun_kumi_str { aki } {
+    \makebox[\fp_eval:n {\g_kanbun_tateaki_fp/\g_kanbun_scale_fp }\g_kanbun_zw_dim ][c]{
+      \rule[\fp_eval:n {-\g_kanbun_tateten_width_tl/2}\g_kanbun_zw_dim ]
+      {\fp_eval:n {0.65 *\g_kanbun_tateaki_fp/\g_kanbun_scale_fp }\g_kanbun_zw_dim }
+      {\fp_eval:n {\g_kanbun_tateten_width_tl}\g_kanbun_zw_dim }
+    }
+  } {
+    \makebox[\fp_eval:n {1/\g_kanbun_scale_fp }\g_kanbun_zw_dim ][c]{
+      \rule[\fp_eval:n {-\g_kanbun_tateten_width_tl/2}\g_kanbun_zw_dim ]
+      {\fp_eval:n {0.65 *1/\g_kanbun_scale_fp }\g_kanbun_zw_dim }
+      {\fp_eval:n {\g_kanbun_tateten_width_tl}\g_kanbun_zw_dim }
+    }
+ }
+}
+
+\NewDocumentCommand { \ninojiten } {} {
+  \g_kanbun_rubyfontsize_rubyfontcmd_tl 〻
+}
+
+% corrects fontsize of ruby base
+\NewDocumentCommand { \kanbunfont } {} {
+  \g_kanbun_fontcmd_tl\fontsize{\g_kanbun_zw_dim }
+  {\fp_eval:n {1+\g_kanbun_yokoaki_fp/\g_kanbun_scale_fp }\g_kanbun_zw_dim }\selectfont
+}
+
+\NewDocumentEnvironment { kanjipar } { +b } {
+  {
+    \kanbunfont
+    #1
+    \par
+  }
+} {}
+
+% for LuaLaTeX to parse Kanbun annotation
+\NewDocumentCommand{\containskana}{ m }{
+  \tl_if_empty:nTF { #1 } {
+    \bool_set_false:N \g_kana_bool
+  } {
+      \regex_set:Nn \c_kana_regex {
+        [\x{3040}-\x{30FA}\x{30FC}-\x{30FF}\x{31F0}-\x{31FF}
+        \x{FF66}-\x{FF9F}\x{1B100}-\x{1B122}\x{1AFF0}-\x{1AFFF}
+        \x{1B000}-\x{1B0FF}\x{1B130}-\x{1B16F}]
+      }
+      \regex_match:NnTF \c_kana_regex { #1 } {
+        \bool_set_true:N \g_kana_bool
+      } {
+        \bool_set_false:N \g_kana_bool
+      }
+  }
+}
+
+% 下配置モードが有効な場合、送り仮名処理の関数を上書き
+\bool_if:NT \g_kanbun_long_okurigana_below_bool {
+  \cs_set:Npn \kanbun_typeset_long_kana:n #1 {
+    \kanbun_typeset_normal_kana:nn { #1 } { }
+  }
+
+  \cs_set:Npn \kanbun_typeset_long_kana_by_raising_okurigana:nn #1 #2 {
+    \kanbun_typeset_normal_kana:nn { #1 } { #2 }
+  }
+}
+
+% \fp_compare:nTF { \g_kanbun_scale_fp <= 2.0 }
+%   { \kanbun_typeset_normal_kana:nn { 　 } { #1 } }
+%   { \kanbun_typeset_normal_kana:nn { 　　 } { #1 } }
+
+\ExplSyntaxOff
+
+% 以下、Luaとのインターフェースにつき、LaTeX3標準ではない記述をしている
+% verbatim reader adapted from https://tex.stackexchange.com/a/361759
+
+\def\EndKanbun{}
+\directlua{
+verb_table = {}
+function store_lines (str)
+  if string.find (str , "\\EndKanbun" ) then
+    luatexbase.remove_from_callback (
+        "process_input_buffer" , "store_lines")
+    return "\\newif\\ifcontinue\\continuetrue\\directlua { co = coroutine.create(main_loop) }
+            \\loop\\directlua{ ok,b=coroutine.resume(co) tex.sprint(b) }
+            \\ifcontinue\\repeat"
+  else
+    table.insert(verb_table, str)
+  end
+  return ""
+end
+
+function register_verbatim ()
+  verb_table = {}
+  luatexbase.add_to_callback(
+    "process_input_buffer" , store_lines , "store_lines")
+end
+  require("kanbun")
+}
+
+\edef\kanbunzwtospvalue{\l_tmpb_for_lua_tl}
+
+% Luaに渡す
+\def\Kanbun{
+  \directlua{
+    kanbunzwtosp = [[\kanbunzwtospvalue]]
+    register_verbatim()
+  }
+}
+
+\def\createcatcodes{%
+  \bgroup%
+    \catcode`\\=12 \catcode`\{=12 \catcode`\}=12%
+    \catcode`\$=12 \catcode`\&=12 \catcode`\^^M=13%
+    \catcode`\#=12 \catcode`\^=12 \catcode`\_=12%
+    \catcode`\ =13 \catcode`\~=12 \catcode`\%=12%
+    \savecatcodetable 1%
+  \egroup%
+}
+
+\createcatcodes
+\def\quitvmode{\ifvmode\else\par\fi}
+\bgroup%
+  \catcode`\^^M=13\gdef^^M{\quitvmode\par}%
+  \catcode`\ = 13\gdef {\quitvmode\Space}%
+\egroup%
+\def\Space{ }
+
+% LuaLaTeXの初期化が完了したことを示すメッセージ（オプション）
+\AtBeginDocument{
+  \typeout{kanbun: LuaLaTeXエンジンで実行中}
+  \typeout{kanbun: バージョン 2.0}
+}
+
+% luatexja-directionの読み込みまたはjlreqの縦書きモードをチェック
+\newif\ifkanbun@vertical
+\kanbun@verticalfalse
+
+% jlreqクラスを使用している場合は、縦書きモードが有効と仮定する
+\@ifclassloaded{jlreq}{
+  % jlreqクラスが使われている場合は何もしない（縦書きと仮定）
+}{
+  % jlreqクラス以外の場合、luatexja-directionの読み込みをチェック
+  \@ifpackageloaded{luatexja-direction}{
+    % luatexja-directionが読み込まれている場合は何もしない
+  }{
+    % どちらも使われていない場合は警告
+    \PackageWarning{kanbun}{
+        luatexja-direction パッケージまたは jlreq クラスが必要なので正しく動作しない可能性があります。}
+  }
+}
+
+% 必要な変数やパラメータの初期化
+\directlua{
+  kanbun = kanbun or {}
+  kanbun.initialized = true
+  kanbun.version = "2.0"
+}
+
+% エクスポートする関数や変数の最終確認
+\endinput

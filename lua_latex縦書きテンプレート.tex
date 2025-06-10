@@ -1,0 +1,1853 @@
+% 
+% 00000001111111111222222222233333333334444444444555555555566666666667777777777
+% 34567890123456789012345678901234567890123456789012345678901234567890123456789
+% 
+% =============================================================================
+% 0. はじめに
+% 以下のファイルは一般的なエディタで開いたとき、キレイに読めるようにしてある。
+% 逆にTeX WorKsでは、残念なレイアウトになっていると思う。
+% =============================================================================
+%
+%   TeXLiveのアップデート
+%  
+%   コマンドラインから
+%   tlmgr update --self --all 
+%   として行う。
+%   オプションを忘れることが多いので書いておく。
+% 
+%   フォントに関連した事項
+%
+%   0-1. フォント関連の単位について
+% 
+%   (1) QまたはHについて
+% 
+%     Q は文字の大きさ、H は行間の広さ、いずれも１単位=0.25mm
+%     よく使われるポイント単位への換算値は、
+%     10.5pt = 15Q、12pt = 17Q、14pt = 20Q、16pt = 22Q など。
+% 
+%   (2) zw、zh、emについて
+% 
+%     zw は全角漢字の幅を基準とする単位（和文基準）
+%     zh は全角漢字の高さを基準とする単位
+%     em は書体の文字の幅を基準とする単位（欧文基準）
+%     2024年時点では zw、zhではなく、mm で指定することが可能
+%
+%   ちなみにzw、zhは、本文やスタイルファイルでは \zw、\zh と\マークをつけて
+%   指定する。例外は、以下に示す\documentclass[ ]の中での指定である。
+%   この中では\マークをつけずに単に zw、zh で指定する。
+%   
+%   0-2. 使用したいフォントの準備
+% 
+%   (1) 使用する予定のフォント（特に旧字体を扱う場合）を準備する。
+%   (2) フォントをインストールすべき場所は次のコマンドが返す、いずれかの
+%       フォルダ
+%       kpsewhich --var-value=TEXMFLOCAL
+%       kpsewhich --var-value=TEXMFHOME 
+% 
+%       自分の設定は、TeXLive2020をデフォルト・フルインストールしたままであり、
+%       TEXMFLOCALが C:/texlive/texmf-local に設定されている。
+%       現在はTeXLive2025をインストールしてあるが、この場所が上書きされること
+%       はない。つまり、TeXLiveをメジャーバージョンアップしても苦労がない。
+% 
+%   (3) フォントは、C:/texlive/texmf-local の下であれば、どこに置いても大丈夫
+%       だが、自分は次のように種類ごとに保存している。
+%
+%       (拡張子が otf のフォントファイルの場合、たとえばAsebi.otf）
+%       C:\texlive\texmf-local\fonts\opentype\vendor\Asebi
+% 
+%       (拡張子が ttf フォントファイルの場合）
+%       C:\texlive\texmf-local\fonts\truetype\vendor\ipa
+%     
+%   (4) 新たなフォントやパッケージファイル（後述）をC:\texlive\texmf-localに 
+%       追加したら、コマンドラインからmktexlsrを実行 (管理者権限が必要かも
+%       しれない）して、追加したことをTeXシステムに認識させておく。
+% 
+%   (5) それでも  LuaTeX がフォントをうまく認識していない場合、
+%       luaotfload-tool --update を実行すると解決するかもしれない。
+% 
+% =============================================================================
+% 1. 日本語縦書きに必要なパッケージ
+% =============================================================================
+%
+% jlreqパッケージの詳細は https://tug.org/docs/latex/jlreq/jlreq-ja.html
+% を参照のこと。
+% 
+\documentclass[
+%
+book,           % 書籍                      デフォルトは article  
+tate,           % 縦書き                    デフォルトは横書き  
+% twoside,      % 見開き                    デフォルトは左右同一レイアウト
+% landscape     % 横方向印刷                デフォルトは縦方向
+twocolumn,      % 二段組の場合              デフォルトは一段組
+column_gap=3zw, % 上段と下段の間の空白      <単位はzw, zhで指定>
+paper=a4paper,  % 用紙サイズ                a4paper、b5paperなどを指定
+fontsize=17Q,   % 欧文のフォントサイズ      <単位はQ, Hで指定> 
+jafontsize=17Q, % 和文のフォントサイズ      <単位はQ, Hで指定>
+gutter=30mm,    % ノド側（綴じる側）の余白  <単位はzw, zhで指定>
+fore-edge=25mm, % ノドでない側の余白        <単位はzw, zhで指定>
+head_space=30mm,% 天の余白                  <単位はzw, zhで指定> 
+foot_space=30mm,% 地の余白                  <単位はzw, zhで指定>
+%               % 天地の余白はいずれか一方を指定する
+% 
+% 以下のパラメータも設定できるが、どうも次のような優先順序があるようだ。
+% 1. 余白を決めると画面サイズが決まる。
+% 2. フォントサイズを決めると１行（列）あたりの文字数が決まる。
+% 3. 行送りで1ページに入る行（列）数が決まる。
+% 4. 段組み数で１段あたりの幅（高さ）が決まり、文字数がこれにより少し減る。
+% 5. 文字数や行数は結果として決まるもので、直接「決める」ことは少し手間が
+%    かかる。もし、文字数・行数を優先としたいのであれば、他のパラメータを
+%    逆算して調整するしかなさそう。
+% baselineskip=,        % 行送り                  <単位はzw, zh, emで指定>
+% line_length=,         % １列あたりの文字数      <単位はzw, zhで指定>
+% number_of_lines=,     % １頁あたりの列数
+% linegap=              % 行間                    <単位はzw, zh, Q, Hで指定>
+% headfoot_sidemargin=  % 柱やページの左右の空き  <単位はzw, zhで指定>
+% sidenote_length=,     % 傍注の幅                <単位ははzw, zhで指定>
+% headfoot_verticalposition=,   % ページ番号と本文の間の空白
+endnote_position={_section}     % 後注を書き出す位置
+]{jlreq}
+%
+% デフォルトでは割注の前後に（）が入るが入るが、これが少し使いにくいので
+% はずす
+\ExplSyntaxOn
+\keys_set:nn { jlreqsetup }
+  {
+    warichu_opening = {},
+    warichu_closing = {}
+  }
+\ExplSyntaxOff
+% 
+\usepackage{luatexja}   % LuaTeX-ja の基本パッケージ
+\usepackage{lltjext}    % 拡張パッケージ
+%
+% https://mirrors.ibiblio.org/CTAN/macros/luatex/generic/luatexja/doc/luatexja-ja.pdf
+% 
+% =============================================================================
+% 2. フォント関連の設定
+% =============================================================================
+% 
+% 2-1. 簡単設定 ----  {luatexja-preset}パッケージを用いる
+% 
+% あらかじめ用意されたBIZ UD フォント、haranoajiフォント、kozuka-pr6nフォント、
+% 游書体フォントなどをデフォルトフォントとすることに問題がなければ、次の１行で
+% 足りる。 
+% 
+% \usepackage[jfm_tate=jlreqv, no-math,deluxe,expert, 
+% yu-win10]{luatexja-preset}
+% 
+% 上の例では、yu-win10と記述することにより、游書体フォントを指定している使用。
+% 指定可能なフォントはコマンドラインから
+% kanji-config-updmap-sys status 
+% とすることで確認できる（実行が完了するまでちょっと時間がかかるかもしれない）。
+% ただし、表示されるからといって必ずしも使えるわけではないようである。
+% 
+% 自分の環境では以下が使用可能となっている（デフォルト・インストール）。
+% bizud:      BIZ UD フォント
+% haranoaji:  原の味フォント
+% ipa:        IPAフォント
+% ipaex:      IPAexフォント
+% kozuka-pr6n:小塚フォント (Pr6N)
+% ms:         MS 明朝、MS ゴシック
+% yu-win10:   游書体
+% 
+% [ ]内のオプションについて
+% jfm_tate=jlreqv : 縦書き時に行末の句読点をうまく配置する。
+% no-math   : fontspec パッケージによる数式フォント置換に不都合が起きること
+%             を防ぐ。数式を使わないという意味ではない。
+% deluxe    : 明朝体3ウェイト、ゴシック体3ウェイト、丸ゴシック体が使用可能。
+%             丸ゴシック体を使いたいところでは \mgfamily 
+%             極太ゴシック体を使いたいところでは \gtebfamily
+% expert:     横組専用仮名・縦組専用仮名を用いる。
+% haranoaji:  原ノ味フォントを指定
+% 
+% このパッケージでは次の２つのWarningsが出ているが実質的な問題はなさそう。
+% 
+% luatexja-preset.sty
+% Package luatexja-preset Warning: Japanese fonts will be scaled by 1.
+% luatexja-preset.sty
+% Package luatexja-fontspec Warning: \addjfontfeature(s) ignored; 
+% it cannot be used with a font that wasn't selected by luatexja-fontspec.
+% 
+% このパッケージに関わらず、TeXではフォントがらみでWarningsが出ることが多いが、
+% 見た目で問題がないなら無視している。気になるなら自力で何とかするしかないが、
+% あまり意味はないように思う。
+% 
+% 2-2. 個別設定
+% 
+\usepackage[no-math]{luatexja-fontspec}
+%
+% 自分の環境ではluatexja-presetを使うと、他のパッケージと組み合わせた時に、
+% 対処不能なエラーに遭遇するので、luatexja-presetではなく、luatexja-fontspec
+% パッケージを用いている。しかし、luatexja-presetは、そもそもluatexja-fontspec
+% をロードしているので、\setmainjfont[]{｝と上書きしても問題なく動くはず。
+% 
+\usepackage{luatexja-otf}
+% 
+% CIDフォント、\CIDコマンドを使うためにluatexja-otfが必要となる。
+% 本テンプレでは、ipamjmフォントの利用のところで、これを使っている。
+% 
+% ---------------------------------------------------------------------------
+%
+% 個別設定では、次の４つについてフォントを指定する方法を示す。ただし、４つ
+% すべてを指定する必要はなく、\setmainjfont を指定するだけでも用は足りる。
+% 
+% \setmainfont{欧文ローマン体フォント}
+% \setsansfont{欧文ゴシック体フォント}   
+% \setmainjfont{和文明朝体フォント}
+% \setsansjfont{和文ゴシック体フォント}
+% 
+% 2-2-1. 欧文ローマン体フォントの設定
+%
+% 欧文ローマン体フォントとしてNotoSerifを指定する場合
+% 
+%\setmainfont{NotoSerif}[
+%  Extension=.ttf,
+%  UprightFont=*-Regular,
+%  ItalicFont=*-Italic,
+%  BoldFont=*-Bold,
+%  BoldItalicFont=*-BoldItalic
+% SlantedFont     スラント体（傾けた立体）を指定
+% BoldSlantedFont 太字のスラント体を指定
+% SmallCapsFont   スモールキャップス体を指定
+% ScriptFont      スクリプト体（筆記体）を指定
+% CapsFont        オールキャップス体を指定
+% ] 
+%
+% 上の設定についての説明
+% 詳細についてはfontspecパッケージを参照のこと
+% 
+%   (例)NotoSerif フォントの場合、
+%       標準体が NotoSerif-Regular.ttf 
+%       イタリック体が NotoSerif-Italic.ttf
+%       太字体が NotoSerif-Bold.ttf
+%       太字イタリック体が NotoSerif-BoldItalic.ttf
+%       となっている。これらのフォントは
+%       (a) ファイルの拡張子が ttf となっているので Extension=.ttfとする。
+%       (b) ファイル名の頭文字はNotoSerifとなっている
+%           ので \setmainfont{NotoSerif}とする。
+%       (c) フォント名の残り部分が
+%           標準体は -Regular なので UprightFont=*-Regular,
+%           イタリック体は -Italic なので ItalicFont=*-Italic,
+%           太字体は -Bold なので BoldFont=*-Bold,
+%           太字イタリック体では -BoldItalic なので 
+%           BoldItalicFont=*-BoldItalic とする。
+%
+% これ以外にもコメントアウトした行（行頭に % が付いている行）のような指定が
+% できる。ちなみにスラント体とイタリック体の違いは、スラントは文字をそのまま
+% 傾けただけであるのに対して、イタリックは単に傾いているだけでなく 筆記体風
+% に作成された別の字形である。
+% 
+% 2-2-2. 欧文ゴシック体（サンセリフ体）フォントの設定
+%
+% 欧文ゴシック体ゴシックとしてNotoSansを指定する場合
+% 
+%\setsansfont{NotoSans}[
+%  Extension=.ttf,
+%  UprightFont=*-Regular,
+%  ItalicFont=*-Italic,
+%  BoldFont=*-Bold,
+%  BoldItalicFont=*-BoldItalic,
+%] 
+%
+% 2-2-3. 和文明朝体フォントの設定
+%
+% 和文明朝体（ローマン体）フォントとしてNotoSerifJPを用いる場合
+% 
+\setmainjfont[
+  Scale=\Cjascale,
+  ScaleAgain=1.0814,  
+  Tate,
+  YokoFeatures={JFM=prop},
+  TateFeatures={JFM=propv}, 
+  Extension=.otf,
+  UprightFont=*-Regular,
+  BoldFont=*-Bold,
+  ItalicFont=*-ExtraLight,
+  RawFeature = {+fwid},
+]{NotoSerifJP}
+%\newfontfamily\normalfont{NotoSerifJP}
+% 
+% 基本的には、2-2-1と同じだが、追加している部分について説明する。
+% 
+% Scale=\Cjascale: 欧文と日本語のフォントサイズを統一し一貫性を持たせるため
+% のもの。\Cjascale は luatexja パッケージで定義されるマクロ変数で jlreq に
+% おける \Cjascale の値はデフォルトで 0.925 となっている。
+% 
+% ScaleAgain はフォントのスケールをさらに微調整するための追加のスケーリング
+% 係数。したがって、最終的なスケールは0.925*1.0814=1.000となる。
+% 
+% {JFM=prop}は横書き用のプロポーショナル（可変幅）フォントに対するメトリック
+% 設定で、文字ごとに異なる幅を持たせる。
+% {JFM=propv} は縦書き用のプロポーショナルフォントに対する設定で、縦書き時に
+% 最適化された文字幅を持たせる。
+%   
+% フォントに等幅フォントを指定しているときに、{JFM=prop}、{JFM=propv}を指定
+% すると微妙な結果になるので、このあたりは適切に指定すること。
+%
+% !! 細字が使いたい !!
+% 
+% ここでは ItalicFont=*-ExtraLight としているが、本来想定されている使い方では
+% ない。しかし、Noto フォントにはそもそもイタリック体などない。また、日本語で
+% はイタリック体よりも細字を使いたいという要求がある。そこで、このように指定し、
+% て細字を用いることができるようにしている。実際に用いるには本文中で、\textit{
+% ここは細字だよ}、あるいは、{\itshape ここは細字だよ}とすればよい。
+% 
+% RawFeature = {+fwid} は、文字を全角で統一するもので、用途は、日本語文書で句
+% 読点や数字を全角にしたい場合や、視覚的な一貫性を保ちたい場合に用いる。フォン
+% トが対応していれば、「,」→「，」、「123」→「１２３」などとなる。
+% -fwidとすれば全角幅を無効化する（オフ）。
+%   
+% 一方、RawFeature = +hwidとすれば半角幅を有効化する。これは全角の逆で狭い幅の
+% 字形を選択する。
+%
+% RawFeature={+trad}というオプションもある。これにより旧字体グリフが使えるよう
+% になる。ただし、最初から旧字体フォントを使う方が楽かもしれない。
+%
+% 2-2-4. 和文ゴシック体フォントの設定
+%
+% 和文ゴシック体フォントとしてNotoSansJPを用いる場合
+% 
+\setsansjfont[
+    Scale=\Cjascale,
+    ScaleAgain=1.0814,
+    YokoFeatures={JFM=prop},
+    TateFeatures={JFM=propv},
+    Extension=.otf,
+    UprightFont=*-Regular,
+    ItalicFont=*-Thin,
+    BoldFont=*-Bold,
+  RawFeature={+fwid},
+]{NotoSansJP}
+% 
+% 補足  ローマン体（明朝体）とサンセリフ体（ゴシック体）の切り替え方法
+%       上の設定では、デフォルトはローマン体（明朝体）。もし、デフォルト
+%       をサンセリフ体にしたいなら、
+%       \renewcommand{\familydefault}{\sffamily} 
+%       とする。
+% TeX文書の本文中では、
+% \sffamily:  サンセリフ体（ゴシック体）に切り替え
+% \rmfamily   上のように切り替えた後にローマン体（明朝体）に戻す
+% \textsf{}:  ローマン体の中でサンセリフ体（ゴシック体）を局所的に適用
+% \textrm{}:  サンセリフ体の中でローマン体を局所的に適用
+%
+% 適用範囲が局所的ではなく、広いなら、
+% \begin{sffamily}
+%     この部分全体がゴシック体になります。
+% \end{sffamily}
+% などと指定することも可能
+%
+% 2-3. その他に使いたいフォントがある場合
+% 
+% \newfontfamilyを用いてフォントを設定する。
+%
+% 2-3-1. やっぱり、HelveticaNeue フォントを使いたい
+%
+% \newfontfamily{\Helvetica}{HelveticaNeueLTPro}[
+%   Extension=.otf,
+%   UprightFont=*-Roman,
+%   ItalicFont=*-It,
+%   BoldFont=*-Bd,
+%   BoldItalicFont=*-Bdit,
+%  ] 
+%
+% 2-3-2. 戸籍で用いる異字体が多く収蔵されているipamjmフォントを使いたい場合
+%
+% この場合 luaipamjm パッケージが必要となる
+% さらに \newjfontfamily 宣言で以下のように以下のように指定する
+% 本文中では、{\ipamjm } の範囲内がipamjmフォントとなる
+% なお、ipamjmフォントの簡単な使い方は本文中に記載した
+% 
+\usepackage{lua_ipamjm}
+\newfontfamily{\ipamjm}{ipamjm.ttf}[
+  Scale=\Cjascale,
+  ScaleAgain=1.0814,
+  Tate,
+  YokoFeatures={JFM=prop},
+  TateFeatures={JFM=propv},
+  AutoFakeBold=4,   % BoldFontが存在しないので擬似的なBoldFontを作る
+                    % 逆にAutoFakeThinのようなオプションは存在しない
+]
+%
+% 2-3-3. 旧字体が必要な場合　その１．馬酔木明朝を使う方法
+% 
+% 本文中で {\Asebi } の範囲内が馬酔木明朝フォントとなる
+%
+\newjfontfamily\Asebi{fAsebiMin-Light.otf}[
+  Scale=\Cjascale,
+  ScaleAgain=1.0814,
+  Tate,
+  YokoFeatures={JFM=prop},
+  TateFeatures={JFM=propv},
+  AutoFakeBold=4,
+]%
+% 2-3-4. 旧字体が必要な場合 その2. タチバナ明朝を使う方法
+% 
+% 本文中で {\Tachibana } の範囲内が馬酔木明朝フォントとなる
+%
+\newjfontfamily{\Tachibana}{TatibanaSerif}[
+%   フォント名はTachibanaではなく、Tatibana (訓令式ローマ字）
+  Scale=\Cjascale,
+  ScaleAgain=1.0814,
+  Tate,
+    YokoFeatures={JFM=prop},
+    TateFeatures={JFM=propv},
+    Extension=.otf,
+    UprightFont=*-Regular,
+    ItalicFont=*-Light,
+    BoldFont=*-Bold,
+]
+%
+% 2-3-4. イワタ楷書体を使う方法
+% 本文中では、{\Iwata}の範囲内がイワタ楷書体フォントとなる
+%
+% \newjfontfamily{\Iwata}{IwaKaiPro-Md.otf}[
+%  Scale=\Cjascale,
+%  \Cjascale
+%  YokoFeatures={JFM=prop},
+%  TateFeatures={JFM=propv},
+%  AutoFakeBold=4,          % BoldFontが存在しないので擬似的なBoldFontを作る
+% ]
+% 
+%
+% 2-4. 中文
+% 
+% 2-4-1. 簡体明朝フォントとしてNotoSerifSCを用いたい場合
+% {\ChubunMin } の範囲内が簡体明朝フォント
+% {\ChubunMin\textbf } の範囲内が簡体明朝太字フォント 
+% {\ChubunMin\textit } の範囲内が簡体明朝細字フォント
+% 
+\newjfontfamily{\ChubunMin}{NotoSerifSC}[
+  Scale=\Cjascale,
+    ScaleAgain=1, %1.0814
+    YokoFeatures={JFM=prop},
+    TateFeatures={JFM=propv},
+    Extension=.otf,
+    UprightFont=*-Regular,
+    ItalicFont=*-Light,
+    BoldFont=*-Bold,
+]
+% 
+% 2-4-2. 簡体ゴシックフォントとしてNotoSansSCを用いたい場合
+% {\ChubunGo } の範囲内がの簡体ゴシックフォント
+% {\ChubunGo\textbf } の範囲内が簡体ゴシック太字フォント 
+% {\ChubunGo\textit } の範囲内が簡体ゴシック細字フォント
+% 
+\newjfontfamily{\ChubunGo}{NotoSansSC}[
+  Scale=\Cjascale,
+  ScaleAgain=1, %1.0814
+  YokoFeatures={JFM=prop},
+  TateFeatures={JFM=propv},
+  Extension=.otf,
+  UprightFont=*-Regular,
+  ItalicFont=*-Light,
+  BoldFont=*-Bold,
+]
+% 
+% 2-5. 梵文
+% 
+% 梵文ローマン体フォントとしてNotoSerifDevanagariを用いたい場合
+% {\Sanskrit } の範囲内が梵文ローマン体の標準フォント
+% {\Sanskrit\textbf } の範囲内が梵文ローマン体の太字フォント
+% {\Sanskrit\textit } の範囲内が梵文ローマン体の細字フォント
+% 
+\newfontfamily{\Sanskrit}{NotoSerifDevanagari}[
+  Scale=\Cjascale,
+  ScaleAgain=1.0,
+  Extension=.ttf,
+  UprightFont=*-Regular,
+  ItalicFont=*-Light,
+  BoldFont=*-Bold,
+]
+%  
+%  サンスクリット語のラテン語表記で入力しにくい文字のリスト (コピペ用)
+% ā Ā ḍ Ḍ ĕ ḥ Ḥ ī Ī ḷ Ḷ ṃ Ṃ ṅ 
+% Ṅ ñ Ñ ṇ ö ṛ Ṛ ṝ Ṝ ś Ś ṣ  ṭ Ṭ ū Ū
+%
+% 2-6. 使いたい文字がフォントに存在しない場合
+%
+% 2-6-1. 対策１
+% 外字フォントを作る 
+%
+% たとえば、闇鈍とう瞢（にぶくぼんやりしていること）という言葉があるが、
+% 「とう」の字は夢の下の夕の部分が登となった字である
+% ちなみに大漢和辞典全１３巻（大修館書店）にも登録されていない
+%
+% 使いたい文字が見あたらない場合、次のようにして外字フォントを作って使う
+% 1.まず、周囲のフォントと同じものを用いて部品のなりそうな漢字をMicrosoft
+%   Wordで用意する。MicrodoftWordの場合、フォントサイズは72ぐらいまでしか
+%   表示されないが、フォントサイズの数字を例えば480ptなどとキーボード入力
+%   で指定すれば、とても大きな文字を表示することができる。これをSnipping 
+%   Tool (Windows標準搭載)などを用いて画面コピーして文字を画像ファイルと
+%   して保存する。（以下、いずれもpng形式で保存するとよい）
+% 2.次にWindowsペイントなどで文字画像のうち必要な部分を切り出して、それ
+%   ぞれ部品ファイルとして保存する。
+% 3.Inkscape (https://inkscape.org/?lang=ja フリーソフト)でこれらのファ
+%   イルを読み込みこみ部品の大きさを縦横適当に拡大縮小し、組み立ててみる。
+%   Inkscapeは少しマイナーなソフトかもしれないが、Adobe Illustratorとほぼ
+%   同様の機能を持つ。このため、文字ファイルを画像からパスに変更することが
+%   できるので、字体の細かい部分が綺麗に修正できる。
+% 4.こうして構成した画像が良い感じになったら、画面コピーして、画像ファイル
+%   として保存する。
+% 5.次にGIMP（https://www.gimp.org/）などでフォントを画像ファイルとして
+%   読み込む。そして、線が細くなってしまったところなどは適宜修正する。
+% 6. 画像ファイルを左に90度回転させて、例えばtou.epsなどeps形式で保存する
+% 7. このファイルをTeXファイルと同じフォルダに置く
+% 8. \raisebox{-0.5\zw}{\includegraphics[width=1\zw]{tou.eps}とする
+% 9. これに送り仮名をふる場合には、
+% \ruby[|g->]{闇鈍\raisebox{-0.5\zw}{\includegraphics[width=1.1\zw]
+% {tou.eps}}瞢}{あんどんとうもう}
+% とすれば良い
+% 
+% 2-6-2. 対策２
+% GTフォントを使う 
+% 文字の指定に手間がかかるが、これを使用する方法がある
+%
+% GTフォントで文字を指定する手順 (1) 
+% これを使う場合にはGTコード検索アプリケーションとTフォント一覧.pdfを
+% 用いて必要な文字を探す
+% http://argent.shinshu-u.ac.jp/~otobe/prog/GTcode.html
+%
+% GTフォントには13個のフォントファイルがあるが、上記の「とう」の字は、
+% GT200010.TTFに含まれており、GTコードが043974であることがわかる
+%
+% GTフォントで文字を指定する手順 (2) 
+% 次に、GT200001.TTFでGTコードが043974となっている文字を検索する
+% すると「鞨」であることがわかる
+%
+% GTフォントで文字を指定する手順 (3) 
+% そこで {\GTX 鞨} と指定する。
+% ここで\GTXは、GT200010.TTFを\GTXと定義しているから
+%
+% なお、GTフォントを用いる場合、Package fontspec Warning: Font "XXXX" does 
+% not contain requested Script "CJK" というWarningが出るが問題はない
+%
+\newjfontfamily{\GTI}{GT200001.TTF}[
+  Scale=\Cjascale,
+  ScaleAgain=1, %1.0814
+  AutoFakeBold=0.3,
+  YokoFeatures={JFM=prop},
+  TateFeatures={JFM=propv},
+]
+% \newjfontfamily{\GTII}{GT200002.TTF}[
+%  Scale=\Cjascale,
+%  ScaleAgain=1, %1.0814
+%  AutoFakeBold=4,
+%  YokoFeatures={JFM=prop},
+%  TateFeatures={JFM=propv},
+% ]
+% \newjfontfamily{\GTIII}{GT200003.TTF}[
+%  Scale=\Cjascale,
+%  ScaleAgain=1, %1.0814
+%  AutoFakeBold=4,
+%  YokoFeatures={JFM=prop},
+%  TateFeatures={JFM=propv},
+% ]
+% \newjfontfamily{\GTIV}{GT200004.TTF}[
+%  Scale=\Cjascale,
+%  ScaleAgain=1, %1.0814
+%  AutoFakeBold=4,
+%  YokoFeatures={JFM=prop},
+%  TateFeatures={JFM=propv},
+% ]
+\newjfontfamily{\GTV}{GT200005.TTF}[
+   Scale=\Cjascale,
+   ScaleAgain=1, %1.0814
+   AutoFakeBold=0.3,
+   YokoFeatures={JFM=prop},
+   TateFeatures={JFM=propv},
+]
+% \newjfontfamily{\GTVI}{GT200006.TTF}[
+%  Scale=\Cjascale,
+%  ScaleAgain=1, %1.0814
+%  AutoFakeBold=4,
+%  YokoFeatures={JFM=prop},
+%  TateFeatures={JFM=propv},
+% ]
+% \newjfontfamily{\GTVII}{GT200007.TTF}[
+%  Scale=\Cjascale,
+%  ScaleAgain=1, %1.0814
+%  AutoFakeBold=4,
+%  YokoFeatures={JFM=prop},
+%  TateFeatures={JFM=propv},
+% ]
+% \newjfontfamily{\GTVIII}{GT200008.TTF}[
+%  Scale=\Cjascale,
+%  ScaleAgain=1, %1.0814
+%  AutoFakeBold=4,
+%  YokoFeatures={JFM=prop},
+%  TateFeatures={JFM=propv},
+% ]
+% \newjfontfamily{\GTIX}{GT200009.TTF}[
+%  Scale=\Cjascale,
+%  ScaleAgain=1, %1.0814
+%  AutoFakeBold=4,
+%  YokoFeatures={JFM=prop},
+%  TateFeatures={JFM=propv},
+% ]
+\newjfontfamily{\GTX}{GT200010.TTF}[
+   Scale=\Cjascale,
+   ScaleAgain=1, %1.0814
+   AutoFakeBold=0.3,
+   YokoFeatures={JFM=prop},
+   TateFeatures={JFM=propv},
+]
+% \newjfontfamily{\GTXI}{GT200011.TTF}[
+%  Scale=\Cjascale,
+%  ScaleAgain=1, %1.0814
+%  AutoFakeBold=4,
+%  YokoFeatures={JFM=prop},
+%  TateFeatures={JFM=propv},
+% ]
+% \newjfontfamily{\GTKI}{GT2000K1.TTF}[
+%  Scale=\Cjascale,
+%  ScaleAgain=1, %1.0814
+%  AutoFakeBold=4,
+%  YokoFeatures={JFM=prop},
+%  TateFeatures={JFM=propv},
+% ]
+% \newjfontfamily{\GTKII}{GT2000K2.TTF}[
+%  Scale=\Cjascale,
+%  ScaleAgain=1, %1.0814
+%  AutoFakeBold=4,
+%  YokoFeatures={JFM=prop},
+%  TateFeatures={JFM=propv},
+% ]
+% 
+% =============================================================================
+% 3. 縦書き、関連パッケージ
+% =============================================================================
+%
+% 「続LaTeX2e階梯・縦組編」藤田眞作 著で紹介されている縦組パッケージを使ってい
+% る人は多いと思うが、LulaTeXでは少し修正が必要となる。
+% 個人的には、sfkanbun.sty、shiika.sty、jdkintou.sty、furikana.sty、kochu.sty、
+% furiknkt.styについて、次の修正を加えて使っていた。
+% 
+% なお、この書籍は絶版となっているが、これらのファイルは、
+% http://xymtex.com/fujitas2/texlatex/index.html#tategumi 
+% に公開されている。
+% 
+% 修正したファイルそのものをアップロードすることには著作権的に問題がありそうな
+% ので修正すべき点を以下に示す。
+%
+% 3-1. スタイルファイルの修正
+% 
+% 1) zwあるいはzhとなっているところはすべて、\zw、\zhとする。
+% 2) \kanjiskip=で指定しているところは、\ltjsetparameter{kanjiskip=}とする。
+% 3) \xkanjiskip=\kanjiskipとなっているところは、
+%    \ltjsetparameter{xkanjiskip=\ltjgetparameter{kanjiskip}}とする。
+%    { }で囲まれている場合には、{}の対応に注意する。
+% 4) sfkanbun.styについて
+%    \smash{...}を{}の対応に注意しつつ\hboxで囲む。
+%    \hbox{\smash{...}}
+%    二の字点の部分をすべてコメントアウト（行頭に %マークを追加）  
+%
+% 3-2. スタイルファイルを適切な場所に保存する
+% 
+% 自分の設定では修正したファイルの接頭字を lua_ として、
+% C:\texlive\texmf-local\tex\lualatex に置いてある。
+%
+% 次にコマンドラインから、
+% mktexlsr
+% を実行して、追加したことをTeXシステムに認識させておく 。
+%
+% 3-3. スタイルファイルの読み込み
+% 
+% 藤田眞作先生のパッケージ改シリーズ
+% 
+\usepackage{lua_furikana}   % 振りかな自動均等パッケージ 
+\usepackage{lua_furiknkt}   % 振りかなを漢字の右上の肩からはじめる
+                % \frikanji{親文字}{右振り漢字}{右振り漢字}
+                % \frikanjikt{親文字}{右振り漢字}{右振り漢字}
+                % 上の２つはpxrubricaでいけそう   
+\usepackage{lua_sfkanbun} % 漢文を扱う場合
+\usepackage{lua_kochu}  % 漢文を扱う場合
+%
+% \usepackage{lua_sfkanbun}について簡単な説明
+%
+% 返り点まじりの漢文を書く場合には、
+% ¥kundoku[制御]{親文字}{ルビ}{送り仮名}{返り点}[肩返り点]<左送りがな>(句読点)
+% 必須の引数
+% {親文字}: 親文字の漢字一文字分のみを指定する
+% {ルビ}: ルビ文字をベタで指定する
+% {送り仮名}: 送り仮名をベタで指定する
+% {返り点}: 返り点（レ点など）を指定する
+% [肩返り点] 親文字の左肩に送り点を置く（レ点の置き方として正統）
+% \uereten          % 上レ点
+% \ichireten    % 一レ点
+% \ongofuno   % 　｜  続けて音読みする。例: 平-定 (へいてい）
+% \kungofuno    % ｜　  続けて訓読みする。例: 昔_者 (むかし)
+% \ongofuni   % 二｜
+% \ongofusan    % 三｜
+% 
+% \usepackage{lua_kochu}    % 後注パッケージ
+% \usepackage{lua_shiika}   % 詩歌パッケージ
+% \usepackage{lua_jdkintou} % 自動均等パッケージ
+% 
+% 藤田眞作先生のパッケージは、今は保守されていない。
+% また、著作権がややこしそうなので、下のパッケージに切り替える方向で作業中
+% 
+% 漢文を扱う場合
+% \usepackage[scale=2, kumi=aki, tateaki=2.5, unit=1.5em, fontcmd=\Asebi]{kanbun} 
+\usepackage[scale=3, kumi=aki, tateaki=2.5, unit=1.5em, fontcmd=\Asebi,
+longokurigana=below]{kanbun} 
+% longokurigana=below とすると長い送り仮名も一列に配置
+% longokurigana=side  とすると従来通りの長い送り仮名は横出し配置
+% unitはem指定する必要があるかもしれない。
+% こちらのパッケージはとにかく使い方がとても簡単。ただし、細かく設定したい場合は
+% それなりに手間がかかる。
+% 	オプションの説明は以下のとおり
+% kumi=aki または beta アキ組またはベタ組を指定
+% tateaki=ratio 送り仮名のサイズを１としたときの文字間（縦書き）デフォルトは２
+% unit=length 漢字サイズ デフォルトは\kanbun_init_zw（1em）
+% fontcmd=font command  
+% 上の例では馬酔木フォントを指定している。
+% デフォルトは、\addjfontfeatures{RawFeature={+trad}}となっており、
+% 漢字を旧字体とすることができる。
+% 
+% rubyfontcmd=font command 
+% 上の例では何も指定していない。
+% デフォルトは\addjfontfeatures{RawFeature={+ruby}}であり、
+% これによりフォントを指定しなくても、そのまま使える。
+% 
+% その他、指定できるパラメータ
+% scale=ratio 漢字サイズ／送り仮名サイズの比・デフォルトは２
+% yokoaki=ratio 送り仮名のサイズを１としたときの文字間（横書き）デフォルトは２
+% tokuriintrusion 送り仮名のサイズを１としたときの親文字への進入量デフォルトは１
+%
+% 漢文訓読み用の指示コマンド
+% ( ): 振仮名• 
+% { }: 送仮名
+% ‹ ›: 再読文字の振仮名   一見不等記号に見えるが不等記号ではないのでコピペして使う。
+% « »: 再読文字の送仮名 一見不等記号に見えるが不等記号ではないのでコピペして使う。
+% 
+% ちなみにWindowsの場合Altコードを使って入力する方法がある（テンキーがある場合）
+% (1)NumLockをオンにする
+% (2)Altキーを押しながら、テンキーで「0139」を入力する
+% (3)Altキーを離すと「‹」が入力される
+% 番号はWindows-1252文字コード
+% ‹は0139、›は0155、  «は171、»は187
+%
+% [ ]: 返点
+% ‘ ’: グループルビのベース。中に縦点を入れてもよい
+% 
+% \Kanbun ～ \EndKanbun この範囲内に上で説明した指定形式で書かれたkanbun原稿を
+% 漢文訓読形式とする
+% \printkanbun    漢文訓読形式でPDF出力
+% \printkanbuncode  漢文訓読コードでコンソールへ出力 
+% 
+% \Kanbun
+% 竊カニ以ミレバ、難思ノ弘誓ハ度スル[二]難度海ヲ[一レ]
+% 大船、无碍ノ光明ハ破スル[二]无明ノ闇ヲ[一]
+% 恵日ナリ。然レバ則、浄邦(ハウ)‹クニ›縁熟シテ、調達
+% 闍世ヲシテ興ゼシム[二]逆害ヲ[一]、浄業機彰レテ‹シヤウ反›、釈
+% 迦韋提ヲシテ選バシメ[二]　(タ)マヘリ安養ヲ[一]。斯レ乃チ、権
+% 化ノ仁、斉シク救[二]‹タスケス›済‹クウ›シ苦悩ノ群萌ヲ[一]、世
+% 雄ノ‹オウ›悲、正ク欲ス[レ]恵マムト[二]逆謗闡提ヲ[一]。
+% \EndKanbun
+% \printkanbuncode
+% \printkanbun
+% 
+% というのが本来の使い方ではあるけれども、どうしても細かい調整をしたいから、
+% \Kanbun～\EndKanbunで、漢文訓読文を出力するのではなく、漢文訓読コードを
+% コンソールだけではなくkanbun_output.txtへ吐き出すようにした。
+% 
+% すると、上の最初の一行はこのように吐き出される。
+% \kanjiunit{\furiokuri{}{カニ}}{}{竊}{}{}{\furiokuri{}{}}
+% \kanjiunit{\furiokuri{}{ミレバ}}{}{以}{、}{}{\furiokuri{}{}}
+% \kanjiunit{\furiokuri{}{}}{}{難}{}{}{\furiokuri{}{}}
+% \kanjiunit{\furiokuri{}{ノ}}{}{思}{}{}{\furiokuri{}{}}
+% \kanjiunit{\furiokuri{}{}}{}{弘}{}{}{\furiokuri{}{}}
+% \kanjiunit{\furiokuri{}{ハ}}{}{誓}{}{}{\furiokuri{}{}}
+% \kanjiunit{\furiokuri{}{スル}}{}{度}{}{二}{\furiokuri{}{}}
+% \kanjiunit{\furiokuri{}{}}{}{難}{}{}{\furiokuri{}{}}
+% \kanjiunit{\furiokuri{}{}}{}{度}{}{}{\furiokuri{}{}}
+% \kanjiunit{\furiokuri{}{ヲ}}{}{海}{}{一}{\furiokuri{}{}}
+% 
+% こうすると、藤田先生のパッケージで一文字ごとに書いていた
+% ¥kundoku[制御]{親文字}{ルビ}{送り仮名}{返り点}[肩返り点]<左送りがな>(句読点)
+% と同じようなことが上のような簡単な記述で出来てしまう。
+% そして、こうすることで次のような利点が出てくる。
+%
+% (1) 長い「ふりかな＋送り仮名」の場合には次の文字を空白スペースで埋めて、
+%     見栄えが良くなる
+% (2) 結構、鬼門な傍線も割と簡単なスタイルをファイルを用意するだけで使えるようになる。
+% 		そこで、これ専用の傍線スタイルファイルも作った。ちなみにオプションはここに示す
+%		よりもう少し多いのだけれど、とりあえず、自分がよく使うのは、	
+%
+%     \bousen[vspaceBefore=-.5em, vspaceAfter=-.2em, shita=.5\zw, label=\rensuji{(1)}]{
+%     \kanjiunit{\furiokuri{}{カニ}}{}{竊}{}{}{\furiokuri{}{}}
+%     \kanjiunit{\furiokuri{おもん}{ミレバ}}{}{以}{、}{}{\furiokuri{}{}}
+%		}
+%
+% vspaceBefore=-.5em, vspaceAfter=-.2emというのは、このマクロをはさむと文字の上下の
+% 位置が微妙にずれる。そこで、それを補正するためのパラメータ。
+% vspaceBefore=-.5emで、傍線開始文字の位置を少し下げてやり、
+% vspaceAfter=-.2emで、傍線が切れた次の文字の位置を少しずらす。
+% shita=.5\zwというのは、傍線の長さを少し長くする
+% label=\rensuji{(1)}というのは、傍線の横に連数字入れたい、記号入れたいという要求
+% この傍線で行をまたぐ場合は、次の行の頭からまた線を引かなくてはならないけれど、
+% 実際、そんなに長い傍線を引くこともないだろうからと、難しいことは避けた。
+%     
+\usepackage{pxrubrica}      	% ルビ（振り仮名）付きのテキストを出力する。
+% \usepackage{luatexja-ruby}  	% 今後のことを考えると、こちらが良いかもしれないが、
+%                   				% 完成度を考慮すると今はpxrubricaをすすめる。
+% 
+% https://qiita.com/zr_tex8r/items/42466cbcbeb670a3a2dc
+%
+% デフォルトは熟語ルビだけれど、普通に使う限り、グループルビが一番楽。 
+% ふりがなに | などという記号を入れなくてすむ。
+% 
+% \ruby[オプション]{親文字}{ルビ文字}
+% \ruby[m]{小鳩}{こ|ばと}           % モノルビ （m）
+% \ruby[|g->]{小鳩}{こばと}         % グループルビ （g）
+% \ruby[j]{小鳩}{こ|ばと}           % 熟語ルビ （j、既定）
+% この\ruby[|-|]{鵲}{かささぎ}の    % 進入なし （|-|、既定）
+% この\ruby[(-)]{鵲}{かささぎ}の    % 進入小 （(-)）
+% この\ruby[<->]{鵲}{かささぎ}の    % 進入大 （<->） 
+% \ruby[|->]{雀}{すずめ}とか。      % 突出あり
+% \ruby[||->]{雀}{すずめ}とか。     % 突出禁止
+% 既定値は「熟語ルビ、中付き、進出なし（つまり |cj| 相当）」
+% 既定値は \rubysetup{オプション文字列} 命令を変えることができる
+% \ruby[Pj]{閑古鳥}{かん|こ|どり}： 上側(右側)配置 （モード P、既定）
+% \ruby[Sg]{閑古鳥}{かっこう}：   下側(左側)配置 （モード S）： 
+% \truby[m]{鄧麗君}{テレ|サ・|テン}{デン・|リー|ジュン} % 両側ルビのモノルビ
+% 
+% 縦書き
+% \ruby[c]{鵜}{う}              %  中付き （c、既定）： 
+% \ruby[h]{鵜}{う}              %  肩付き （h）：     
+% \ruby[hm]{鵞鳥}{が|ちょう}      %  鵞は肩付き、鳥は中付きになる
+% \ruby[Hm]{鵞鳥}{が|ちょう}      %  鵞も鳥も肩付きになる
+% 
+% ルビの文字サイズを変更するには \rubysizeratio{サイズ} 
+% 
+% 既定値は"熟語ルビ, 進出なし"
+% \rubysetup{<m>} % モノルビに変更 （m）
+% \ruby[fj]{鵞鳥}{が|ちょう}        %  小書き文字変換有効 がちよう
+% \ruby[Fj]{鵞鳥}{が|ちょう}      %  小書き文字変換無効 がちょう
+% 
+% \ruby[オプション]{親文字}{ルビ文字}             
+%     和文にルビを付ける。
+% \aruby[オプション]{親文字}{ルビ文字}            
+%     欧文にルビを付ける。
+% \truby[オプション]{親文字}{上側ルビ}{下側ルビ}  
+%     和文に両側ルビを付ける。
+% \atruby[オプション]{親文字}{上側ルビ}{下側ルビ} 
+%     欧文に両側ルビを付ける。
+% \rubysetup{オプション}                      
+%     オプションの既定値を変更する。
+% \rubyfontsetup{フォント命令}                
+%     ルビ用のフォントの設定。
+% \rubybigintrusion{進入量}                   
+%     進入“大”の時の進入量（ルビ全角単位、既定値 = 1）
+% \rubysmallintrusion{進入量}                 
+%     進入“小”の時の進入量（ルビ全角単位、既定値 = 0.5）
+% \rubyintergap{空き量}                       
+%     ルビと親文字の間の空き（親文字全角単位、既定値 = 0）
+% 
+% オプション文字列は次のように5つの部分から成る。
+% 
+% (前進入設定)(前補助設定)(モード)(後補助設定)(後進入設定)
+% 
+% 〔前進入設定〕
+% 文字      意味
+% ǀǀ        前突出禁止
+% ǀ         前進入無し
+% (         前進入小
+% <         前進入大
+% 
+% 〔後進入設定〕
+% 文字      意味
+% ǀǀ        後突出禁止
+% ǀ         後進入無し
+% )         後進入小
+% >         後進入大
+% 
+% 〔前補助設定／後補助設定〕
+% 文字      意味
+% :         和欧文間空白挿入
+% .         空白挿入無し
+% *         行分割禁止
+% !         段落冒頭（末尾）で進入許可
+% 
+% 〔モード〕
+% 文字      意味                    
+% -         （無指定）  
+% c         中付き                  
+% h         肩付き                  
+% H         拡張肩付き  
+% m         モノルビ                
+% g         グループルビ            
+% j         熟語ルビ                
+% P         上側（右側）配置      
+% S         下側（左側）配置      
+% e         親文字均等割り有効  
+% E         親文字均等割り無効  
+% f         小書き文字変換有効  
+% F         小書き文字変換無効
+% 
+\usepackage{setspace}   % 文書内の行間隔を設定を行うパッケージ
+% 
+% \usepackage{setspace}について簡単な説明
+%
+% \begin{spacing}{倍率}～\end{spacing}の部分について任意の倍率で行間を設定する
+% 特に後注にふりがなが入る場合、行間が一定でなくなるので、これを用いる。
+%
+% 3-4. 割り注
+% 
+% デフォルトでは割注の前後に（）が入るが入るが、これが少し使いにくいのではずしている。
+% 割り注が思い通りに表示されないときは、まずはもう１回コンパイル。
+% 
+% \ExplSyntaxOn
+% \keys_set:nn { jlreqsetup }
+%   {
+%     warichu_opening = {},
+%     warichu_closing = {}
+%   }
+% \ExplSyntaxOff
+% 
+% もし、本文中で元の設定のように前後に括弧（）をつけたい場合は原文の前後を（）
+% で囲めばよい。
+% 
+% 3-5. 特殊文字の入力
+% 
+% \kern-.5\zw % 文字の位置を0.5文字上にずらす （意味は左にずらすだけれども縦書きでは上）
+% \kern.5\zw  % 文字の位置を0.5文字下にずらす 
+% \rensuji    % 縦書でアラビア数字を水平方向に並べる
+% \hbox{〳〵}   % くの字: 左のように\hboxにまとめておくと行下で区切られない
+% \hbox{〴〵} % くの字点: 〲
+% \―     % 縦線を２文字分つなげた線を引く。
+% ↑の命令は用意されていないので次のように定義する。
+\def\―{―\kern-.5\zw―\kern-.5\zw―} 
+%
+% =====================================================
+% 4. その他必要なパッケージ
+% =====================================================
+%
+% 4-1. 必要なパッケージ
+% 
+\usepackage{enumitem}
+% 基本的なリスト環境（enumerate、itemize、およびdescription）の
+% レイアウトを制御するためのパッケージ
+%
+\usepackage{graphicx}
+% 図を入れるためのパッケージ
+%
+\usepackage{float}          
+% [H]指定で好きな位置に図や表を入れるためのパッケージ
+% [H]指示を使いたければ \restylefloat{figure} \restyle{table} コマンドを先に指定
+% [H]でエラーが出たら、[ht]で指定する。
+% [H]指示にはfloat不要という話もあるが、自分の環境ではこれがないとどうもうまくいかない。
+% 
+\restylefloat{figure}
+\restylefloat{table}
+%
+% 表の作成をするなら、https://www.tablesgenerator.com/ を使ってできるだけ楽をしよう。
+%
+\usepackage{longtable}
+% 大きな表をつかう
+%
+\usepackage{pdflscape}
+% 表を横書きするためのためのパッケージ
+%
+\usepackage{multirow}
+% セルの縦方向の結合は \multirow
+% セルの横方向の結合は \multicolmun パッケージ不要
+
+\usepackage{tocloft}
+% \usepackage{titletoc}
+% 目次の体裁を調整するためのパッケージ
+%
+% \usepackage{tocbibind}
+% 目次に表示される内容を制御するパッケージ
+% 
+% \usepackage[
+% notbib,%「Bibliography」がToC内に表示されないようにする
+% notlot,% List of Tables」がToC内に表示されないようにする
+% notlof,% List of Figures」がToC内に表示されないようにする
+% nottoc %「Contents」がToC内に表示されないようにする
+% ]{tocbibind}
+%
+% tocbibindを使うと、目次に「目次」、「表目次」などを表示するかどうかを
+% 制御することができる
+%
+\usepackage{listings,jvlisting}  % ソースコード表示用
+\usepackage{xcolor} % 多色刷りにする
+%
+% 4-2. 細かな設定 ここに書いてあることは一通りできあがってから考えればいい。
+% 
+% 
+% 4-2-1. 頁番号を小口/下にする （小口/上なら次の２行をコメントアウト)
+% 
+\ModifyPageStyle{plain}{nombre_position=bottom-left}
+\pagestyle{plain}
+%
+% 4-2-2. 頁番号を表示しない場合には、
+% 
+% \pagestyle{empty} % <-- この行の先頭の % を外し、
+% 「頁番号小口/下」で指定した２行の先頭に % をつける
+%
+% 4-2-3. 段落の字下げする高さ
+%
+\parindent=0\zw%
+%
+% 4-2-4. 全角空白が行頭に来る場合、これを出力しない (\zenaki{})
+%
+\newcommand{\zenaki}{\hskip1\zw plus .125\zw minus 0.03125\zw}
+%
+% 4-2-5. 先頭ページ番号
+%
+\setcounter{page}{1}
+% 
+% 4-2-6. 見出しのスタイルの設定
+% 
+% chapterの定義
+% 
+\DeclareBlockHeading{chapter}{1}{     % chapter を別行見出しにする
+  pagebreak=cleardoublepage,      % 章を始める前に改丁する
+  label_format={第\thechapter 章},  % ラベルのフォーマット
+  font={\Large},              % 見出しのフォントサイズ
+  lines=1,                % 見出しのために１行
+  before_lines=1,             % 見出しの前に1行取る
+  after_lines=1,              % 見出しの後ろに１行
+  indent=2\zw%              % インデント
+}
+% 
+% section の定義
+% 
+\renewcommand{\thesection}{}      % 節の番号はなしが基本
+\DeclareBlockHeading{section}{2}{   % section を別行見出しにするに
+  font={\Large},              % 見出しのフォントサイズ
+  lines=1,                % 見出しのために１行
+  before_lines=1,             % 見出しの前に1行取る
+  after_lines=1,              % 見出しの後ろに１行
+  indent=0\zw%              % インデント
+}
+% 
+% subsubsection の定義 {注の形式がこれに従う}
+% 
+\renewcommand{\thesubsubsection}{}    % 節の番号はなしが基本
+\DeclareBlockHeading{subsubsection}{2}{   % section を別行見出しにする
+  font={\normalsize},             % 見出しのフォントサイズ
+  lines=1,                  % 見出しのために１行
+  before_lines=0.5,             % 見出しの前に0.5行取る
+  after_lines=0.5,                % 見出しの後ろに0.5行取る
+  indent=2.5\zw               % インデント
+}
+%
+% 4-2-7. 目次設定
+% 
+% 4-2-7-1. 目次のタイトルの体裁を修正
+% 
+\renewcommand{\cfttoctitlefont}{\large\bfseries}
+% 目次の表題を、largeサイズ, 太字に変更
+% 
+\renewcommand{\contentsname}{目 次 \\ \vspace{1em}}
+% 目次の表題を、少し変更
+% 
+\renewcommand{\cftbeforetoctitleskip}{0pt}
+\renewcommand{\cftaftertoctitleskip}{0pt}
+% 表題の上下の調整幅をなくす
+% 
+% 4-2-7-2. 目次の中身の体裁を修正
+% 
+\renewcommand{\cftchapfont}{\normalsize}
+% 章見出しのフォントサイズ
+% 
+\renewcommand{\cftchappagefont}{\normalsize}
+% 章ページ番号のフォント
+% 
+\renewcommand{\cftchapnumwidth}{5em}
+% 章見出しのインデント幅サイズ
+% 
+\addcontentsline{toc}{chapter}{序}
+% 章とはしないが、章と同じ扱いをする（例えば、序）
+% （使用例） 
+% \addcontentsline{toc}{chapter}{序}
+% \chapter*{序}
+% 
+\renewcommand{\cftchapleader}{\cftdotfill{\cftchapdotsep}}
+% 章見出しからページ番号までを点線でつなぐ
+% 
+\renewcommand{\cftchapdotsep}{\cftdotsep}
+% 上の点線の点間隔の調整
+% 
+\setlength{\cftbeforechapskip}{0pt}
+% 章見出しの上にある余白を調整
+% 
+\renewcommand{\cftsecnumwidth}{5.5em}
+% 節見出しのインデント幅
+%
+% 4-2-7-3. 目次の設定 (sectionまでを目次に載せる)
+%
+\setcounter{tocdepth}{1}      
+% 
+%  BOOKにおける階層構造とLEVELの値
+%  Level  名称
+%  -1   \part{部の名前}           Ⅰ,Ⅱ,Ⅲ …部。これは省略可能
+%  0    \chapter{章の名前}        1, 2, …
+%  1    \section{節の名前}        1.1, 1.2, …
+%  2    \subsection{小節の名前}       1.1.1, 1.1.2, …
+%  3    \subsubsection{小小節の名前}  1.1.1.1, …
+%  4    \paragraph{段落の名前}      1.1.1.1.1, …
+%  5    \subparagraph{小段落の名前}   1.1.1.1.1.1, …
+%
+% 4-3 TIPS
+% 
+% 4-3-1. 文字の配置
+%
+% 4-3-1-1.上寄せ
+% \begin{flushleft}～\end{flushleft}      
+%
+% 4-3-1-2.中央寄せ
+% \begin{center}～\end{center}          
+%
+% 4-3-1-3.下寄せ
+% \begin{flushright}～\end{flushright}      
+%
+% 4-3-1-4.空白を挿入して、該当の行を版面の高さ
+% いっぱいに広げ最後にxxxxを表示して改行
+% \hfill xxxx \par                
+%
+% 4-3-2. 箇条書きの書式
+%
+% 4-3-2-1. 記号付き箇条書き
+% \begin{itemize}     
+% \item
+% \end{itemize}
+% 
+% 4-3-2-2. 見出し付き箇条書き・その１
+% \begin{description} 
+% \item[XXXX]
+% \end{description}
+% 
+% 4-3-2-3. 見出し付き箇条書き・その２  
+% \item[XXXX]の次の行に説明が入る。
+% \begin{description}[style=nextline] 
+% \item[XXXX]
+% \end{description}
+%              
+% 4-3-2-4. 見出し付き箇条書き・その３  
+% \item[XXXX]\mbox{}\\の次の行に説明が入る
+% 見出し付き箇条書き２をネストすると、見出しのフォントに問題が生じる
+% これを回避するためにネストした内はこちらを指定する
+% \begin{description} 
+% \item[XXXX]\mbox{}\\
+% \end{description}
+% 
+% 4-3-2-5. 通し番号付き箇条書き
+% \begin{enumerate}     
+% \item
+% \end{enumerate}
+% 
+% 4-3-2-6. 箇条書きについていくつかの書式例
+% https://konoyonohana.blog.fc2.com/blog-entry-58.html から引用
+% \setlist{noitemsep}
+% \setlist[1]{\labelindent=\parindent} % < Usually a good idea
+% \setlist[itemize]{leftmargin=*}
+% \setlist[itemize,1]{label=$\triangleleft$}
+% \setlist[enumerate]{labelsep=*, leftmargin=1.5pc}
+% \setlist[enumerate,1]{label=\arabic*., ref=\arabic*}
+% \setlist[enumerate,2]{label=\emph{\alph*}),ref=\theenumi.\emph{\alph*}}
+% \setlist[enumerate,3]{label=\roman*), ref=\theenumii.\roman*}
+% 
+% 4-3-3. 引用
+% 
+% 4-3-3-1. 短い引用 (改行後の字下げなし)
+% \begin{quote}     
+% \end{quote} 
+% 
+% 4-3-3-2. 長い引用 (改行後は字下げする)
+% \begin{quotation}   
+% \end{quotation}
+% 
+% 4-4. 使用上の注意
+%
+% \begin{description}～\end{description}
+% の\itemがデフォルトではゴシック体となるので違和感がある場合には、本文中に
+% \setlist[description]{font=\rmfamily\bfseries}
+% として明朝体に変更する
+% 
+% 箱の大きさを調べるマクロ
+%\def\showsize#1{\setbox0=\hbox{#1}width=\the\wd0, height=\the\ht0,%
+%
+\usepackage{tikz} 
+\def\pgfsysdriver{pgfsys-pdftex.def}
+% 作図パッケージ
+% 
+\newcommand*\chucircled[1]{\tikz[baseline=(char.base)]
+{\node[shape=circle, draw, font=\scriptsize, 
+inner sep=-0.25ex] (char) {#1};}}
+% 
+% 〇囲み数字の定義１
+%
+\newcommand*\circled[1]{\tikz[baseline=(char.base)]
+{\node[shape=circle, draw, inner sep=0ex, scale=0.8] (char) {#1};}}
+%
+\newcommand*\circledplus[2][2pt]{\circled{#2}\hspace{#1}}
+%
+% \newcommand*\circled[1]{\tikz[baseline=(char.base)]
+% {\node[shape=circle, draw,
+% inner sep=.5ex] (char) {#1};}}
+% 
+% 〇囲み数字の定義２
+%
+\tikzset{Hako/.style={rectangle, draw, text centered}}
+
+%\usepackage{enumitem}
+%...
+% \begin{enumerate}[label=\protect\circled{\arabic*}]
+% \item First item
+% \item Second item
+% \item Third item
+% \item Fourth item
+% \end{enumerate}
+
+%
+% 枠箱
+% 
+%\makeatletter
+%\def\kochuuname{注}
+%\def\arabicchuucite#1{\ajMaru{#1}}%本文中での注番号
+%\def\@kochuulabel#1{\ajMaru{#1}}
+%\makeatother
+%
+
+% =====================================================
+% 5. 本文
+% =====================================================
+% 
+\usepackage{bousen}
+
+% \ExplSyntaxOn
+% 長いルビのとき、溢れた文を右に書かずに上から一列に書く。
+% \cs_set:Npn \kanbun_typeset_long_kana_by_raising_okurigana:nn #1 #2 {
+%   \kanbun_typeset_normal_kana:nn { #1 } { #2 }
+% }
+% 
+% 単純に長いルビも溢れた文を右に書かずに上から一列に書く。
+% \cs_set:Npn \kanbun_typeset_long_kana:n #1 {
+%   \kanbun_typeset_normal_kana:nn { #1 } { }
+% }
+% \ExplSyntaxOff
+
+\begin{document}
+% これまでの設定を用いて、どのように記述すれば良いかを比較を交えながら説明する。
+%
+
+\circledplus{１}経典目録の組版
+
+% 藤田先生のパッケージを使う場合
+% Y\llap=tagyoboxによる指定
+% 
+% \vspace{12pt} 
+% 浄土三部経\           %   /(半角スペース)で半角1文字を入れている。
+% \tagyobox{
+% 仏説無量寿経二巻    \\
+% 仏説観無量寿経一巻  \\
+% 仏説阿弥陀経一巻    \\
+% }
+% 
+% 藤田先生のパッケージを使わない場合
+% Y\llap=parboxによる指定
+% 
+\vspace{12pt} 
+浄土三部経\ 
+{\scriptsize
+\raisebox{-2pt}{    % ここをプラスに設定すると右に動き、マイナスに設定すると左に動く
+\parbox{0.5\textwidth}{
+  仏説無量寿経二巻    \\
+  仏説観無量寿経一巻  \\
+  仏説阿弥陀経一巻    \\
+}}}
+
+\vspace{12pt} 
+\circledplus{２}漢字で注釈
+
+% 藤田先生のパッケージを使う場合
+% Y\llap=FuriKanjiktによる指定
+% 
+% \vspace{6pt} 
+% \FuriKanjikt{転法輪等一巻}{\kern0.5\zw (朱)「御正傳一」}{} 
+%     
+% \vspace{6pt} 
+% 孔子還\FuriKanjikt{向}{}{香高反} \kern-0.5\zw 而立  
+%         
+% \vspace{9pt} 
+% \FuriKanjikt{且人有八疵}{　　　　　　　　キス}{　　　　　　　　祀知反}  
+
+% 
+% 藤田先生のパッケージを使わない場合
+% Y\llap=rubyによる指定
+% 
+\vspace{12pt} 
+\ruby[|g->]{転法輪等}{\kern0.5\zw (朱)「御正傳一」}一巻 
+       
+% 藤田先生のパッケージを使わない場合
+\vspace{9pt} 
+孔子還\ruby[||S->]{向}{\kern0.5\zw 香高反}\kern-0.25\zw 而立  
+ 
+\vspace{9pt} 
+且人有八\truby[||->]{疵}{キス}{祀知反}  
+
+% いずれも、ほぼ同じ出力が得られる。
+
+\vspace{18pt} 
+\circledplus{３}　親文字からルビ文字までの距離 
+
+　（デフォルト）
+
+孔子還\ruby[||S->]{向}{\kern0.5\zw 香高反}\kern-0.25\zw 而立
+
+\vspace{9pt} 
+　（　\textbackslash{}raisebox\{-1.ex\}　で間隔を空ける）
+
+孔子還\ruby[||S->]{向}{\kern0.5\zw {\raisebox{-1.ex}{香高反}}}\kern-0.25\zw 而立
+
+     
+% text 部分の高さ,深さを設定し, それを上下位置に移動させる
+% フォントサイズ(\normalsize)を10ptに設定した場合
+% \tiny       		5pt
+% \scriptsize   	7pt
+% \footnotesize 	8pt
+% \small      		9pt
+% \normalsize   	10pt
+% \large      		12pt
+% \Large      		14.4pt
+% \LARGE      		17.28pt
+% \huge     			20.74pt
+% \Huge     			24.88pt
+% 
+\vspace{18pt} 
+\circledplus{４}複行割
+%  藤田先生のパッケージを使う場合 
+% 
+% Y\llap=tagyoboxによる指定
+% 
+% \vspace{12pt}
+% 六道\
+% \tagyobox{
+% 地獄　大定智悲地蔵（地蔵菩薩） \\
+% 餓鬼　大徳清浄地蔵（宝手菩薩） \\
+% 畜生　大光明地蔵　（宝処菩薩） \\
+% 修羅　清浄無垢地蔵（宝印菩薩） \\
+% 人間　大清浄地蔵　（持地菩薩） \\
+% 天上　大堅固地蔵　（堅固意菩薩） \\
+% }
+
+　（　\textbackslash{}parboxによる指定）
+
+\vspace{12pt} 
+六道\
+{\scriptsize
+\raisebox{-2pt}{    
+\parbox{0.5\textwidth}{
+地獄　大定智悲地蔵（地蔵菩薩）  \\
+餓鬼　大徳清浄地蔵（宝手菩薩）  \\
+畜生　大光明地蔵　（宝処菩薩）    \\
+修羅　清浄無垢地蔵（宝印菩薩）  \\
+人間　大清浄地蔵　（持地菩薩）    \\
+天上　大堅固地蔵　（堅固意菩薩）  \\
+}}}
+
+% これもほぼ同じ出力が得られる。
+% 
+%  藤田先生のパッケージを使う場合 
+% \vspace{12pt}         
+% Y\llap=tagyoboxとY\llap=fukutagyoboxによる指定
+% 
+% \vspace{6pt}
+% \FuriKanjikt{五大虚空蔵菩薩\ }
+% {（入唐僧恵運請来）}
+% {（ 教王護国寺観智院）}
+% \tagyobox{
+% \vspace{6pt}\\  % 位置調整
+% 法界虚空蔵菩薩
+% \fukutagyobox{獅子\\宝珠\\} \\
+% 金剛虚空蔵菩薩
+% \fukutagyobox{象\\宝金剛\\}\\
+% 宝光虚空蔵菩薩
+% \fukutagyobox{馬罪\\三弁宝\\}\\
+% 蓮華虚空蔵菩薩
+% \fukutagyobox{孔雀罪\\大紅蓮華\\}\\
+% 業用虚空蔵菩薩
+% \fukutagyobox{迦楼羅\\宝翔磨\\} \\
+% }
+%
+% 藤田先生のパッケージを使わない場合
+
+\vspace{12pt}         
+　（　\textbackslash{}trubyと　\textbackslash{}tabularと　\textbackslash{}parboxによる指定）
+
+\vspace{12pt}       
+\truby[!!g->]{五大虚空蔵}{（入唐僧恵運請来）}{（教王護国寺観智院）}菩薩
+% リスト部分
+{\scriptsize
+% \renewcommand{\arraystretch}{0.8} % 行間を80%に縮小してコンパクトに
+  \begin{tabular}{@{}l@{\hspace{2pt}}l@{}}
+    法界虚空蔵菩薩 & {\tiny \parbox{0.25\textwidth}{獅子\\宝珠\\}}  \\
+    金剛虚空蔵菩薩 & {\tiny \parbox{0.25\textwidth}{象\\宝金剛\\}} \\
+    宝光虚空蔵菩薩 & {\tiny \parbox{0.25\textwidth}{馬罪\\三弁宝\\}} \\
+    蓮華虚空蔵菩薩 & {\tiny \parbox{0.25\textwidth}{孔雀罪\\大紅蓮華\\}}\\
+    業用虚空蔵菩薩 & {\tiny \parbox{0.25\textwidth}{迦楼羅\\宝翔磨\\}} \\
+  \end{tabular}
+}
+
+\vspace{12pt}       
+藤田先生のパッケージより幅が広がってしまうが、読みやすいとも言える。
+実はトリッキーなことをすれば幅を狭めることはできるが、汎用性がないので避けた方が良い。
+
+\vspace{12pt}
+\circledplus{５}ここで、文字位置を左右に振ってみる。
+
+\begin{lstlisting}
+\raise1ex\hbox{text}
+\lower1ex\hbox{text}
+\raisebox{2ex}[1ex][0ex]{text}
+\end{lstlisting}
+
+あ\raise1ex\hbox{い} う　 　か \lower1ex\hbox{き} く　　
+さ\raisebox{2ex}[1ex][0ex]{し}す　　た\raisebox{-2ex}[1ex][0ex]{ち}つ \\ \\ 
+
+設定した英語フォントと日本語フォント
+\vspace{24pt}
+
+\begin{tabular}{ll}
+{和文明朝体・標準} \\
+\textbf{和文明朝体・太} \\
+\textit{和文明朝体・細字} \\
+
+\gtfamily{和文ゴシック体・標準} \\
+\gtfamily\textbf{和文ゴシック体・太} \\
+\gtfamily\textit{和文ゴシック体・細字} \\
+
+\rmfamily
+This document is written using Lua\LaTeX{}.  \\ 
+欧文ローマン体・標準\\
+\sffamily
+This document is written using Lua\LaTeX{}.  \\ 
+\gtfamily 欧文ゴシック体・標準\\
+
+\rmfamily
+\textit{This document is written using Lua\LaTeX{}.}  \\ 
+{欧文ローマン体・イタリック}\\
+\sffamily
+\textit{This document is written using Lua\LaTeX{}.}  \\  
+{欧文ゴシック体・イタリック}\\
+\rmfamily
+\textbf{This document is written using Lua\LaTeX{}.} \\  
+{欧文ローマン体・太字}\\
+\sffamily
+\textbf{This document is written using Lua\LaTeX{}.}  \\ 
+{欧文ゴシック体・太字}\\
+\end{tabular}
+
+\newpage
+{\ipamjm
+ipamjmフォントの使い方
+
+\vspace{12pt}
+葛について異字体の番号を調べるには、 \textbackslash MJI?\{葛\} とする。\\
+{\Large \MJI?{葛} }\\
+
+葛について異字体番号を指定して表示するには、\textbackslash MJI2\{葛\} ～
+\textbackslash MJI8\{葛\} とする。 \\
+{\Large \MJI2{葛}  \MJI4{葛}  \MJI5{葛}  \MJI6{葛}  \MJI7{葛}  \MJI8{葛} }\\
+
+邉について異字体の番号を調べるには、\textbackslash MJI?\{邉\}とする。\\
+{\Large \MJI?{邉} }\\
+
+邉について異字体番号を指定して
+\textbackslash MJI16\{邉\}～ \textbackslash MJ31\{邉\} とすると \\
+{\Large \MJI16{邉}  \MJI17{邉}  \MJI18{邉}  \MJI19{邉}  \MJI20{邉}  \MJI21{邉}
+\MJI22{邉}  \MJI23{邉}}\\
+{\Large \MJI24{邉}  \MJI25{邉}  \MJI26{邉}  \MJI27{邉}  \MJI28{邉}  \MJI29{邉}
+\MJI30{邉}  \MJI31{邉}}\\
+
+邊について異字体の番号を調べるには、\textbackslash MJI?\{\}とする。
+{\Large \MJI?{邊}} \\
+
+邊について異字体番号を指定して
+\textbackslash MJI9\{邊\}～ \textbackslash MJI18\{邊\} とすると \\
+{\Large \MJI9{邊}  \MJI10{邊}  \MJI11{邊}  \MJI12{邊}  \MJI13{邊}  \MJI14{邊}
+\MJI15{邊}  \MJI16{邊}  \MJI17{邊}  \MJI18{邊}}\\
+
+
+「い」の変体仮名を表すにはMJIコードで
+\textbackslash MJI*\{90006\}と指定する。
+
+\vspace{12pt}
+\hspace{24pt}
+{\LARGE \MJI*{90006}}
+}
+
+\vspace{24mm}
+外字の例
+
+\vspace{4mm}
+{\Large
+\ruby[||g->]{闇鈍}{あんどん}
+\ruby[||g->]{\raisebox{-0.5\zw}{\includegraphics[width=1.1\zw]{tou.eps}}}{とう}
+\ruby[||g->]{瞢}{もう}
+}
+
+\vspace{4mm}
+GTフォントの例
+
+\vspace{4mm}
+{\Large
+\ruby[||g->]{\GTI 闇}{あん}
+\ruby[||g->]{\GTI 鈍}{どん}
+\ruby[||g->]{\GTX 鞨}{とう}
+\ruby[||g->]{\GTV 悼}{もう}
+}
+
+\newpage
+
+%%%% 熟語ルビ、隣接文字に半角までかけるのを許可するのを既定とする
+\rubysetup{<j>} 
+
+%%%% ルビと親文字の間の空き(既定値は 0)
+\rubyintergap{0.04} 
+
+\ruby{君子}{くん|し}は\ruby{和}{わ}して\ruby{同}{どう}ぜず　〇熟語ルビ
+
+\ruby[g]{君子}{くんし}は\ruby{和}{わ}して\ruby{同}{どう}ぜず　●グループルビ
+
+\vspace{12pt}
+\ruby{人}{ひと}に\ruby{誨}{おし}えて\ruby{{\CID{7674}}}{う}まず　〇熟語ルビ
+
+\ruby[m]{人}{ひと}に\ruby[m]{誨}{おし}えて\ruby[m]{{\CID{7674}}}{う}まず　▲モノルビ
+%%%% モノルビ(オプション=m)
+%%%% 親文字中の \CID{7674} (〈倦〉異体字)を一文字と扱うため { } が必要
+
+\vspace{12pt}
+\ruby[j]{鬼門}{き|もん}の\ruby[j]{方角}{ほう|がく}を\ruby[j]{凝視}{ぎよう|し}する　〇熟語ルビ
+
+\ruby[m]{鬼門}{き|もん}の\ruby[m]{方角}{ほう|がく}を\ruby[m]{凝視}{ぎよう|し}する　▲モノルビ
+
+
+%%%% 熟語ルビ(オプション=j)
+\vspace{12pt}
+\ruby[j]{茅場町}{かや|ば|ちよう}\quad　〇熟語ルビ進入制限なし
+
+%%%% 隣の文字に進入してはいけない側に〈|〉を書く
+\ruby[j|]{茅場}{かや|ば}\ruby[|j]{町}{ちよう}　〇熟語ルビ進入制限あり
+
+%%%% グループルビ(オプション=g)
+\vspace{12pt}
+●グループルビでいろいろな例
+
+\vspace{12pt}
+\ruby[g]{紫陽花}{あじさい}\quad \ruby[g]{坩堝}{るつぼ}\quad \ruby[g]{田舎}{いなか}　
+
+\rubysetup{g} % 既定値をグループルビに変更
+\ruby[||g->]{境界面}{インターフエース}\quad \ruby{避難所}{アジール}　●グループルビ
+
+\ruby{顧客}{クライアント}\quad \ruby{模型}{モデル}　●グループルビ
+
+\ruby{編集者}{{editor}}\quad \ruby{{editor}}{エディター}　●グループルビ
+
+\ruby{幟}{のぼり}を\quad \ruby{葦編三絶}{いへんさんぜつ}　●グループルビ
+
+\vspace{12pt}
+文字が大きい場合、ルビサイズの縮小割合を変える必要がある。
+
+\newpage
+{\LARGE
+  \ruby{葦編三絶}{いへんさんぜつ}}　●グループルビ
+\\
+
+{\LARGE
+  \rubysizeratio{0.375} % 縮小割合を変更する(元は0.5)
+  \ruby{葦編三絶}{いへんさんぜつ}}　●グループルビ
+\\
+
+{\LARGE
+  \rubysizeratio{0.375} % 縮小割合を変更する(元は0.5)
+  \ruby[j]{葦編三絶}{い|へん|さん|ぜつ}}　〇熟語ルビ
+
+
+%%%% 両側ルビ(\truby 命令) (グループルビのみ)
+\vspace{12pt}
+\truby{東南}{とうなん}{たつみ}　※両側ルビ
+\par\medskip % ルビの高さは無視されるのでそのままだと次行と重なる
+
+%%%% 中付き(オプション=c)←これは既定
+%%%% 肩付き(オプション=h)
+
+%%%% 〈||〉を書いた側の端が揃うようになる； 〈|〉との違いに注意
+\vspace{12pt}
+の\ruby[||-]{旬}{しゆん}に\\
+の\ruby[-||]{旬}{しゆん}に\\
+の\ruby[|-|]{旬}{しゆん}に\\
+
+%%%% 「熟語の構成を考慮する方法」は非対応
+%%%% 熟語ルビを行分割させるのは「難しい」……
+%
+%--------------------------------------- 3.3.8節
+\rubysetup{<->} % ルビ全角までかけるのを許すのを既定値とする
+
+漢字の部首には\ruby{偏}{へん}・\ruby{冠}{かんむり}・\ruby{脚}{きやく}・\ruby{旁}{つくり}がある\\
+漢字の部首には\ruby{偏}{へん}、\ruby{冠}{かんむり}、\ruby{脚}{きやく}、\ruby{旁}{つくり}がある\\
+漢字の部首には「\ruby{偏}{へん}」「\ruby{冠}{かんむり}」「\ruby{脚}{きやく}」「\ruby{旁}{つくり}」がある\\
+
+\newcommand*{\噂}{\CID{7642}} % \CID{...} をマクロにすると { } が不要になる
+この\ruby[-|]{\噂}{うわさ}好きな人は\ruby[-|]{懐}{ふところ}具合もよく、\ruby[-|]{檜}{ひのき}材を\par
+この\ruby{\噂}{うわさ}の好きな人は\ruby{懐}{ふところ}ぐあいもよく、\ruby{檜}{ひのき}を\par
+
+\rubysetup{(-)} % ルビ半角までかけるのを許すのを既定値とする
+\rubysetup{<->} % ルビ全角までに戻す
+
+
+\newpage
+（引用の例）
+
+『\ruby[g]{称讃浄土経}{しょうさんじょうどきょう}』にのたまはく、\ruby[g]{玄奘三蔵}{げ
+んじょうさんぞう}の\ruby[g]{訳}{やく}なり \\
+
+\rubysetup{j} 
+\begin{quote}
+「たとひ\ruby[j]{百千倶胝那由他劫}{ひゃく|せん|く|てい|な|ゆ|た|こう}を\ruby[g]{経}
+{へ}て、 それ\ruby[g]{無量百千倶胝那由他}{むりょうひゃくせんくていなゆた}の
+\ruby[g]{舌}{した}をもつて、 \ruby[g]{一々}{いちいち}の\ruby[g]{舌}{した}の
+\ruby[g]{上}{うえ}に\ruby[g]{無量}{むりょう}の\ruby[g]{声}{こえ}を
+\ruby[g]{出}{いだ}して、 その\ruby[g]{功徳}{くどく}を\ruby[g]{讃}{ほ}めむに、 
+また\ruby[g]{尽}{つ}くることあたはじと。」 \\
+\end{quote}
+
+\newpage
+{\LARGE
+\ruby[||g->]{浄土}{じょうど}
+\ruby[||g->]{和讃}{わさん}
+} \\
+
+○冠頭讃 \\
+\rensuji{(1)}勧信
+\begin{quote}
+\ruby[||g->]{弥陀}{みだ}の\ruby[||g->]{名号}{みょうごう}となへつつ \\
+\ruby[||g->]{信心}{しんじん}まことにうるひとは \\
+\ruby[||g->]{憶念}{おくねん}の\ruby[||g->]{心}{しん}つねにして \\
+\ruby[||g->]{仏恩報}{ぶっとんほう}ずるおもひあり
+\end{quote}
+\rensuji{(2)}誡疑
+\begin{quote}
+\ruby[||g->]{誓願不思議}{せいがんふしぎ}をうたがひて \\
+\ruby[||g->]{御名}{みな}を\ruby[||g->]{称}{しょう}する
+\ruby[||g->]{往生}{おうじょう}は \\
+\ruby[||g->]{宮殿}{くでん}のうちに
+\ruby[||g->]{五百歳}{ごひゃくさい} \\
+むなしくすぐとぞときたまふ
+\end{quote}
+
+\vspace{4mm}
+『\ruby[||g->]{讃阿弥陀仏偈}{さんあみだぶつげ}』にいはく  
+\ruby[||g->]{曇鸞御造}{どんらんごぞう}
+\begin{quote}
+\ruby[||g->]{南無阿弥陀仏}{なもあみだぶつ}
+\ruby[||g->]{釈}{しゃく}して
+\ruby[||g->]{無量寿傍経}{むりょうじゅぼうきょう}と
+\ruby[||g->]{名}{な}づく、 \ruby[||g->]{讃}{ほ}めたてまつりてまた
+\ruby[||g->]{安養}{あんにょう}といふ。 
+\ruby[||g->]{成仏}{じょうぶつ}よりこのかた 
+\ruby[||g->]{十劫}{じっこう}を\ruby[||g->]{歴}{へ}たまへり、
+\ruby[||g->]{寿命}{じゅみょう}まさに\ruby[||g->]{量}{はか}りあることなし、 
+\ruby[||g->]{法身}{ほっしん}の\kana{光輪法界}{こうりんほうかい}に
+\ruby[||g->]{遍}{へん}して、\ruby[||g->]{世}{せ}の\ruby[||g->]{盲冥}{もうみょう}を
+\ruby[||g->]{照}{て}らしたまふ、 かるがゆゑに\ruby[||g->]{頂礼}{ちょうらい}したてまつる。
+\end{quote}
+
+\vspace{4mm}
+・阿弥陀三十七号
+\begin{quote}
+また\ruby{無量光}{む|りょう|こう}と\ruby{真実明}{しん|じつ|みょう}と
+\ruby{号}{なづ}く、
+また\ruby{無辺光}{む|へん|こう}と\ruby{平等覚}{びょう|どう|かく}と
+\ruby{号}{なづ}く、
+また\ruby{無}{む}\ruby{礙光}{げ|こう}と\ruby{難}{なん}\ruby{思議}{じ|ぎ}と
+\ruby{号}{なづ}く、
+また\ruby{無対光}{む|たい|こう}と\ruby{畢竟依}{ひっ|きょう|え}と
+\ruby{号}{なづ}く、
+また\ruby{光炎王}{こう|えん|のう}と\ruby{大応供}{だい|おう|ぐ}と
+\ruby{号}{なづ}く、
+また\ruby[||j->]{清浄光}{しょう|じょう|こう}と
+\ruby{号}{なづ}く、
+また\ruby{歓喜光}{かん|ぎ|こう}と\ruby{大安慰}{だい|あん|に}と
+\ruby{号}{なづ}く、
+また\ruby{智}{ち}\ruby{慧光}{え|こう}と\ruby{号}{なづ}く、
+また\ruby{不断光}{ふ|だん|こう}と\ruby{号}{なづ}く、
+また\ruby{難思光}{なん|じ|こう}と\ruby{号}{なづ}く、
+また\ruby{無称光}{む|しょう|こう}と\ruby{号}{なづ}く、
+\ruby{超日月光}{ちょう|にち|がつ|こう}と\ruby{号}{なづ}けたてまつる。\\
+\end{quote}
+
+（割注の例）\\
+\vspace{4mm}
+『\ruby{十住毘婆娑論}{じゅう|じゅう|び|ば|しゃ|ろん}』にいはく
+
+\ruby{自在人}{じ|ざい|にん} （\warichu{我礼}）
+
+\ruby[||j->]{清浄人}{しょう|じょう|にん} （\warichu{帰命}）
+
+\ruby{無量徳}{む|りょう|とく} （\warichu{称讃}\warichu{以上}）
+
+\vspace{4mm}
+（梵文、和文、後注の例）\\
+
+（梵文）
+\begin{Sanskrit}
+सुरवावतीव्यूह:।
+\end{Sanskrit}
+
+（和文）
+\kochuumark{JP1}無量寿経
+\begin{kochuu}
+\chuuitem{JP1} 「無量寿経」の本来の名称は「厳粛な極楽経」（Sukhāvatīvyūhaḥ）となるが、
+ここでは通称の「無量寿経」としている。
+\end{kochuu}
+
+\newpage
+\Kanbun
+竊カニ以ミレバ、難思ノ弘誓ハ度スル[二]
+難度海ヲ[一]大船、无碍ノ
+光明ハ破スル[二]无明ノ闇ヲ[一]恵
+日ナリ。然レバ則、浄邦(ハウ)‹クニ›縁熟シテ、
+調達闍世ヲシテ興ゼシム[二]逆害ヲ[一]、
+浄業機彰レテ‹シヤウ反›、釈迦韋
+提ヲシテ選バシメ[二]　(タ)マヘリ安養ヲ[一]。斯レ乃チ、
+権化ノ仁、斉シク救―[二]‹タスケスクウ›済‹›シ苦
+悩ノ群萌ヲ[一]、世雄ノ‹オウ›悲、正ク
+欲ス[レ]恵マムト[二]逆謗闡提ヲ[一]。
+\EndKanbun
+
+{\Asebi \Large 
+\begin{spacing}{1}
+% 字間を均一することを優先しているので、ふりがなサイズを親文字の1/3としても
+% ふりがなは２文字まで、送り仮名は３文字までとなっている。
+\bousen[vspaceBefore=-.4em, vspaceAfter=-.5em, shita=.5em, label=\rensuji{(1)}]{
+\kanjiunit{\furiokuri{}{カニ}}{}{竊}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ミレバ}}{}{以}{、}{}{\furiokuri{}{}}
+}
+\kanjiunit{\furiokuri{}{}}{}{難}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ノ}}{}{思}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{弘}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ハ}}{}{誓}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{スル}}{}{度}{}{二}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{難}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{度}{}{}{\furiokuri{}{}}
+\kern -0.2em
+\kanjiunit{\furiokuri{}{ヲ}}{}{海}{}{一}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{大}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{船}{、}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{无}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ノ}}{}{碍}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{光}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ハ}}{}{明}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{スル}}{}{破}{}{二}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{无}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ノ}}{}{明}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ヲ}}{}{闇}{}{一}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{恵}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ナリ}}{}{日}{。}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{レバ}}{}{然}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{則}{、}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{浄}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{ハウ}{}}{}{邦}{}{}{\furiokuri{クニ}{}}
+\kanjiunit{\furiokuri{}{}}{}{縁}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{シテ}}{}{熟}{、}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{調}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{達}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{闍}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ヲシテ}}{}{世}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ゼシム}}{}{興}{}{二}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{逆}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ヲ}}{}{害}{、}{一}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{浄}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{業}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{機}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{あらわ}{レテ}}{}{彰}{、}{}{\furiokuri{シヤウ反}{}}
+\kanjiunit{\furiokuri{}{}}{}{釈}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{迦}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{韋}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ヲシテ}}{}{提}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{　　}{バシメタマヘリ}}{}{選}{}{二}{\furiokuri{}{}}
+% 送り仮名がながく、かつ、ひらがながないとき、送り仮名が一番上から始まってしまう
+% scaleが2ならば全角スペースを１個、scaleが2ならば全角スペースを２個入れると良い
+\kanjiunit{\furiokuri{}{}}{}{　}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{安}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ヲ}}{}{養}{。}{一}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{レ}}{}{斯}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{チ}}{}{乃}{、}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{権}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ノ}}{}{化}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{仁}{、}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{シク}}{}{斉}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{救}{―}{二}{\furiokuri{タスケスクウ}{}}
+\kanjiunit{\furiokuri{}{シ}}{}{済}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{苦}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ノ}}{}{悩}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{群}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ヲ}}{}{萌}{、}{一}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{世}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ノ}}{}{雄}{}{}{\furiokuri{オウ}{}}
+\kanjiunit{\furiokuri{}{}}{}{悲}{、}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ク}}{}{正}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ス}}{}{欲}{}{レ}{\furiokuri{}{}}
+%\buntoure % 文頭レ点
+\kanjiunit{\furiokuri{}{マムト}}{}{恵}{}{二}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{逆}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{謗}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{闡}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ヲ}}{}{提}{。}{一}{\furiokuri{}{}}
+\end{spacing}
+}
+
+\newpage
+{\large 『顕浄土真実教行証文類』}
+
+\begin{description}
+\item[【字解】]\mbox{}\\
+\begin{description}[style=nextline] 
+\item[一．浄土]
+一般に浄土とは、仏と菩薩が住んでおられる仏国であり、五濁もなく、悪道もないところを指す。十方（東・西・南・北・北東・北西・南東・南西・上・下の十の方向、あらゆる方向）に諸仏の浄土があるが、通常、阿弥陀仏の西方極楽浄土を指して浄土という。ただし、ここでは極楽浄土を指すのではなく、聖道門に対して、浄土門を指している。すなわち、阿弥陀仏の他力の本願により西方極楽浄土に往生させていただく教門を指す。
+
+\item[二．真実]
+方便でない真実（まこと）のこと。
+
+\item[三．教行証]
+「教」とは仏の\kana{言教}{おしえ}であり、「行」とはその教に説かれてある修行、「証」とはその行によって得る\kana{証果}{さとり}である。したがって、教は\kana{能詮}{あらわすもの}で行証は\kana{所詮}{あらわされるもの}という。また、行は\kana{因}{たね}であり、証は果である。
+
+\item[四．文類]
+「文」とは\kana{要}{かなめ}となる文、「類」とは\kana{類聚}{るいじゅう}のことである。この「御本書』は、浄土門の教行信証の四法を明らかにする『浄土三部経』および七祖の論釈、その他の経論釈から、その要文を引用し、その\kana{類}{たぐい}を\kana{聚}{あつ}めて説き明したものである。したがって文類という。文類の例としては、南宋の石芝宗暁法師が編纂した『\kana{楽邦}{らくほう}文類』などがある。
+\end{description} 
+\end{description} 
+
+\tikzset{Hako/.style={rectangle, draw, text centered}}
+
+\begin{tikzpicture}
+% 以下、座標の見当をつけるためのグリッド
+% \draw[step=1,very thin,gray] (-2,2) grid (12, -2);
+% \foreach \n in{0,2,...,12}
+% {
+%   \draw (\n,2) node[below]{\small $\n$};
+% }
+    \node[Hako](a) at (0,    0){因願の文};
+    \node[Hako](b) at (4   , 1) {至心信楽欲生我国};
+    \node[Hako](c) at (3.1,  0) {乃至十念};
+    \node[Hako](d) at (3.1 ,-1) {若不生者};
+    \draw (1.5, 0) |- (b);
+    \draw (a) -- (c);
+    \draw (1.5, 0) |- (d);
+    \node[Hako](e) at (7.5,  1){信};
+    \node[Hako](f) at (7.5,  0){行};
+    \node[Hako](g) at (7.5, -1){証};
+    \draw (b) -- (e);
+    \draw (c) -- (f);
+    \draw (d) -- (g);
+    \node[Hako](h) at (10,0){四法};
+    \draw (8.6, 0) |- (e);
+    \draw (h) -- (f);
+    \draw (8.6, 0) |- (g);
+
+\end{tikzpicture}
+%% デフォルト設定（太さ0.4pt、位置0.6字分、１本線）
+\end{document}

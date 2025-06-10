@@ -1,0 +1,152 @@
+\ProvidesPackage{lua_ipamjm}[2017/07/13]
+
+\ifdefined\luaipamjm@loaded\expandafter\endinput\fi
+\RequirePackage{luatexja}
+\ifluatex\else
+  \PackageError{lua_ipamjm}{This package requires LuaTeX-ja}{}%
+  \expandafter\endinput
+\fi
+\def\luaipamjm@loaded{}
+
+\newcount\luaipamjm@ivs
+\RequirePackage{luacode,luaotfload}
+\font\@tempa = IPAmjMincho
+\begin{luacode}
+  luaipamjm = {}
+  local identifiers = fonts.hashes.identifiers[font.id('@tempa')]
+  luaipamjm.variants = identifiers.resources.variants
+  local cat_lp = luatexbase.catcodetables['latex-package']
+  local unicodes = identifiers.resources.unicodes
+  function luaipamjm.mj_to_glyph(c)
+    local s = string.format('mj%06d',c)
+    return unicodes[s] or 0x3013 -- fallback: ゲタ
+  end
+  function luaipamjm.get_seq()
+    if token.scan_keyword('+') then
+      return token.scan_int()
+    else
+      local s = token.scan_string()
+      local v = tonumber(s,16)
+      return v or (unicode.utf8.len(s)==1 and unicode.utf8.byte(s))
+    end
+  end  
+  function luaipamjm.get_char()
+    local ivs = tex.getcount('luaipamjm@ivs')
+    local n = luaipamjm.get_seq()
+    local uchar = unicode.utf8.char
+    if ivs==-0xFFFFF then
+      local s = {} -- {{-1, n}}
+      for i,v in pairs(luaipamjm.variants) do
+        if i>=0xE0100 and v[n] then s[#s+1] = {i-0xE0100,v[n]} end
+      end
+      table.sort(s, function(a,b) return a[1]<b[1] end)
+      local res = ''
+      for _,v in ipairs(s) do
+        res = res .. '\\MJlist{\\ltjjachar' .. v[2] .. '}{'
+          .. (v[1]) .. '}'
+      end
+      tex.sprint(cat_lp, '\\MJI@wrapchoice{' .. res .. '}')
+    else
+      ivs = ivs + tex.getcount('luaipamjm@ivs@base')
+      local c = luaipamjm.variants[ivs] and luaipamjm.variants[ivs][n]
+      if c then
+        tex.sprint(cat_lp, '\\MJI@wrap{\\ltjjachar' .. tostring(c) .. '}')
+      else
+        tex.sprint(cat_lp, '\\MJI@wrapfallback{\\ltjjachar' .. tostring(n) .. '}')
+      end
+    end
+  end
+\end{luacode}
+
+\RequirePackage{l3keys2e}
+\ExplSyntaxOn
+
+%%%%%%%% \g_luaipamjm_scale_fp
+\fp_new:N \g_luaipamjm_scale_fp
+\group_begin:
+\fontsize{16}{16}\selectfont
+\fp_gset:Nn \g_luaipamjm_scale_fp {\zw / 16}
+\group_end:
+
+\DeclareKanjiFamily{JY3}{mjmzm}{}
+\DeclareFontShape{JY3}{mjmzm}{m}{n}{<-> s*[\fp_use:N \g_luaipamjm_scale_fp] IPAmjMincho:jfm=ujis}{}
+\DeclareKanjiFamily{JT3}{mjmzm}{}
+\DeclareFontShape{JT3}{mjmzm}{m}{n}{<-> s*[\fp_use:N \g_luaipamjm_scale_fp] IPAmjMincho:jfm=ujisv}{}
+
+\tl_new:N \luaipamjm_highlight_color_tl
+\tl_new:N \luaipamjm_choice_color_tl
+\tl_new:N \luaipamjm_fallback_color_tl
+\tl_set:Nn \luaipamjm_highlight_color_tl {blue}
+\tl_set:Nn \luaipamjm_choice_color_tl {}
+\tl_set:Nn \luaipamjm_fallback_color_tl {red}
+\bool_new:N \luaipamjm_highlight_bool
+\keys_define:nn { luaipamjm }
+  {
+    highlight .bool_set:N = \luaipamjm_highlight_bool,
+    highlight .default:n  = true,
+    nohighlight .bool_set_inverse:N = \luaipamjm_highlight_bool,
+    nohighlight .default:n  = true,
+    scale .fp_gset:N = \g_ltj_fontspec_scale_fp,
+    highlight_color .tl_set:N = \luaipamjm_highlight_color_tl,
+    choice_color .tl_set:N = \luaipamjm_choice_color_tl,
+    fallback_color.tl_set:N = \luaipamjm_fallback_color_tl,
+  }
+\ProcessKeysOptions{ luaipamjm }
+
+\bool_if:NT { \luaipamjm_highlight_bool }{ \RequirePackage{color} }
+
+\def\MJI@wrap#1{\leavevmode
+  \bool_if:nT {\luaipamjm_highlight_bool && !\tl_if_empty_p:N \luaipamjm_highlight_color_tl}
+    {\textcolor{\tl_use:N \luaipamjm_highlight_color_tl} }
+  { \kanjifamily{mjmzm}\selectfont#1}
+}
+\def\MJI@wrapchoice#1{\leavevmode
+  \bool_if:nT {\luaipamjm_highlight_bool && !\tl_if_empty_p:N \luaipamjm_choice_color_tl}
+    {\textcolor{\tl_use:N \luaipamjm_choice_color_tl} }
+  { \kanjifamily{mjmzm}\selectfont#1}
+}
+\def\MJI@wrapfallback#1{\leavevmode
+  \bool_if:nT {\luaipamjm_highlight_bool && !\tl_if_empty_p:N \luaipamjm_fallback_color_tl}
+    {\textcolor{\tl_use:N \luaipamjm_fallback_color_tl} } { #1 }
+}
+\def\MJcolor{\tl_set:Nn \luaipamjm_highlight_color_tl }
+\def\MJchoicecolor{\tl_set:Nn \luaipamjm_choice_color_tl }
+\def\MJfallbackcolor{\tl_set:Nn \luaipamjm_fallback_color_tl }
+
+\ExplSyntaxOff
+
+\def\MJI{\@ifstar{\MJI@mjnum}{\MJI@base}}
+\def\MJI@mjnum#1{\MJI@wrap{\ltjjachar\directlua{%
+   tex.sprint(-2, luaipamjm.mj_to_glyph(token.scan_int()))}#1}}
+
+\def\MJI@base{\@ifnextchar[{\MJI@braced}{\MJI@nobraced}%]
+}
+\def\MJI@braced[#1]{%
+  \def\@tempa{?}\edef\@tempb{#1}%
+  \ifx\@tempa\@tempb \luaipamjm@ivs=-"FFFFF
+  \else\luaipamjm@ivs#1\relax\fi
+  \MJI@glyph@@}
+\def\MJI@nobraced{\@ifnextchar?{\MJI@list}{\MJI@glyph}}
+\def\MJI@list?{\luaipamjm@ivs=-"FFFFF\MJI@glyph@@}
+\def\MJI@glyph{\@ifnextchar\bgroup{\MJI@glyph@onlyipamjm}{\MJI@glyph@}}
+\def\MJI@glyph@onlyipamjm#1{{\kanjifamily{mjmzm}\selectfont#1}}
+\def\MJI@glyph@{\afterassignment\MJI@glyph@@\luaipamjm@ivs}
+\def\MJI@glyph@@#1{{\directlua{luaipamjm.get_char()}#1}\relax}
+
+\newcount\luaipamjm@ivs@base
+\luaipamjm@ivs@base="E0100
+\def\MJindexbase#1{%
+  \luaipamjm@ivs@base=#1
+  \ifnum\luaipamjm@ivs@base<\z@
+    \PackageError{luaipamjm}{Number is out of valid range.}{}%
+  \else\ifnum\luaipamjm@ivs@base>\@cclv
+    \PackageError{luaipamjm}{Number is out of valid range.}{}%
+  \fi\fi
+  \luaipamjm@ivs@base=\numexpr"E0100-\luaipamjm@ivs@base\relax
+}
+
+\def\MJlist#1#2{% #1: base, #2: selector number
+  \setbox0=\hbox{#1}\@tempdima=\f@size\p@
+  \setbox1=\hbox to\wd0{\hss\fontsize{.5\@tempdima}{0}\selectfont\ttfamily #2\hss}%
+  \copy0\kern-\wd0\smash{\raise\dimexpr-\dp0-\ht1\box1}\relax
+}

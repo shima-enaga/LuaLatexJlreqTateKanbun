@@ -1,0 +1,314 @@
+% Kanbun.sty、Kanbun.lua、bounsen.styを使って、漢文訓読PDFファイルを作るために
+% 必要な最低限の構成(TeXLive2025がデフォルト・インストールしてある前提
+%
+\documentclass[
+book,           % 書籍                      デフォルトは article
+tate,           % 縦書き                    デフォルトは横書き
+twocolumn,      % 二段組の場合              デフォルトは一段組
+column_gap=3zw, % 上段と下段の間の空白      <単位はzw, zhで指定>
+paper=a4paper,  % 用紙サイズ                a4paper、b5paperなどを指定
+fontsize=17Q,   % 欧文のフォントサイズ      <単位はQ, Hで指定>
+jafontsize=17Q, % 和文のフォントサイズ      <単位はQ, Hで指定>
+gutter=30mm,    % ノド側（綴じる側）の余白  <単位はzw, zhで指定>
+fore-edge=30mm, % ノドでない側の余白        <単位はzw, zhで指定>
+head_space=30mm,% 天の余白                  <単位はzw, zhで指定>
+foot_space=30mm,% 地の余白                  <単位はzw, zhで指定>
+]{jlreq}
+\usepackage{showframe}
+\usepackage{layout}
+\renewcommand{\ShowFrameColor}{\color{red}}
+\renewcommand{\ShowFrameLinethickness}{0.5pt}
+\usepackage{printlen}
+% mm単位を使用
+\uselengthunit{cm}
+%
+\ExplSyntaxOn
+\keys_set:nn { jlreqsetup }				% デフォルトがちょっと使いにくいので、
+  {										% 上書きしている。
+    warichu_opening = {},
+    warichu_closing = {}
+  }
+\ExplSyntaxOff
+%
+\usepackage{luatexja}                   % LuaTeX-ja の基本パッケージ
+\usepackage{lltjext}                    % 同 拡張パッケージ
+\usepackage[no-math]{luatexja-fontspec} % LuaTeX-ja でフォントを使えるようにする
+\usepackage{luatexja-otf}               % 同 拡張パッケージ
+%
+%
+% 2-2-3. 和文明朝体フォントの設定
+%
+% 和文明朝体（ローマン体）フォントとしてNotoSerifJPを用いる場合
+%
+\setmainjfont[
+  Path = C:/texlive/texmf-local/fonts/otf/Noto_Serif_JP/,
+  Scale=\Cjascale,
+  ScaleAgain=1.0814,
+  YokoFeatures={JFM=prop},
+  TateFeatures={JFM=propv},
+  Extension=.otf,
+  UprightFont=*-Regular,
+  BoldFont=*-Bold,
+  ItalicFont=*-ExtraLight,
+  RawFeature={+fwid},
+]{NotoSerifJP}
+%
+% 2-2-4. 和文ゴシック体フォントの設定
+%
+% 和文ゴシック体フォントとしてNotoSansJPを用いる場合
+%
+\setsansjfont[
+    Path = C:/texlive/texmf-local/fonts/otf/Noto_Sans_JP/,
+    Scale=\Cjascale,
+    ScaleAgain=1.0814,
+    YokoFeatures={JFM=prop},
+    TateFeatures={JFM=propv},
+    Extension=.otf,
+    UprightFont=*-Regular,
+    ItalicFont=*-Thin,
+    BoldFont=*-Bold,
+  RawFeature={+fwid}
+]{NotoSansJP}
+%
+% 2-3-3. 旧字体フォントを使う
+%
+% 本文中で {\Asebi} の範囲内が馬酔木明朝フォントとなる
+% https://metasta.github.io/asebi/
+%
+\newjfontfamily{\Asebi}{AsebiMin-Light.otf}[
+  Path = C:/texlive/texmf-local/fonts/otf/Asebi/,
+  Scale=\Cjascale,
+  ScaleAgain=1.0814,
+  UprightFont=AsebiMin-Light,
+  YokoFeatures={JFM=prop},
+  TateFeatures={JFM=propv},
+  AutoFakeBold=4,
+% ↑ これは BoldFont が存在しないので擬似的なBoldFontを作るため
+%
+]
+% 
+% 2-3-3. 聖典全書フォントを使う
+%
+% 浄土真宗聖典全書準拠。文字のコードは同一のまま、フォントフェイスを
+% 旧字体に入れ替えるという方法をとっており、通常の文字で入力した文書
+% のフォントにこの「聖典全書明朝」を適用すると、自動的に旧字体で表示
+% される。
+% http://www.yamadera.info/fonts/fonts-index.htm#fundamental
+% 
+% 仏教経典用フォントとして自由に入手できるものとして最も優れている。
+% ただし、必要なフォントメトリクス情報が含まれていないため、通常の
+% フォントと同様に扱いをすると、TeX では、すべて同じ位置に印刷される
+% 点に注意する必要がある。
+% 
+\newjfontfamily{\Seiten}{SeitenZensho.ttf}[
+  Path = C:/texlive/texmf-local/fonts/ttf/Seiten/,
+  Scale=\Cjascale,
+  ScaleAgain=1.0814,
+  UprightFont=SeitenZensho,
+  YokoFeatures={JFM=prop},
+  TateFeatures={JFM=propv},
+%
+]
+% =============================================================================
+% 3. 縦書き、関連パッケージ
+% =============================================================================
+\usepackage{pxrubrica}          % ルビ（振り仮名）付きのテキストを出力する。
+\usepackage[unit=1.5em, scale=3, kumi=aki, tateaki=2.5, longokurigana=below]{kanbun}
+\usepackage{bousen}
+\usepackage{setspace}   % 文書内の行間隔を設定を行うパッケージ
+% 特に後注にふりがなが入る場合、行間が一定でなくなるので、これを用いる。
+% \begin{spacing}{倍率}～\end{spacing}の部分について任意の倍率で行間を設定する
+\usepackage{graphicx}
+\usepackage{tikz}
+\def\pgfsysdriver{pgfsys-pdftex.def}
+%
+% =====================================================
+% 5. 本文
+% =====================================================
+\begin{document}
+\clearpage
+\layout
+\Kanbun
+竊カニ以ミレバ、難思ノ弘誓ハ度スル[二]
+難度海ヲ[一]大船、无碍ノ
+光明ハ破スル[二]无明ノ闇ヲ[一]恵
+日ナリ。然レバ則、浄邦(ハウ)‹クニ›縁熟シテ、
+調達闍世ヲシテ興ゼシム[二]逆害ヲ[一]、
+浄業機彰レテ‹シヤウ反›、釈迦韋
+提ヲシテ選バシメ[二]　(タ)マヘリ安養ヲ[一]。斯レ乃チ、
+権化ノ仁、斉シク救―[二]‹タスケスクウ›済‹›シ苦
+悩ノ群萌ヲ[一]、世雄ノ‹オウ›悲、正ク
+欲ス[レ]恵マムト[二]逆謗闡提ヲ[一]。
+\EndKanbun
+% 以下の部分（つまり、\begin{spacing}{1}から\end{spacing}の部分）は、最初から自
+% 分で書く必要はない。\Kanbunから\EndKanbunの範囲を作成し、一度、コンパイルする
+% と、このTeXファイルがあるディレクトリ（フォルダのこと）にkanbun_output.txtが
+% 出力される。その内容を\begin{spacing}{1}から\end{spacing}で挟まれた部分にコピ。
+% ペするだけである。
+% しかる後に傍線を引きたいところに\bousenコマンドを適用し、行頭（縦書きの場合、
+% 正確には列の先頭）にレ点が来た場合には\buntoureコマンドを適用する。
+% また、ふりかな＋おくりかなの長さが特に長い場合には空白スペースで適宜調整し、
+% 字間に違和感がある場合には、\hbox{}や\kern-0.05emを使った調整などを書き加える。
+{\Seiten \Large
+\begin{spacing}{1}
+\bousen[vspaceBefore=-1.6em, vspaceAfter=-.5em, shita=.5em, label=\rensuji{(1)}]{
+\kanjiunit{\furiokuri{}{カニ}}{}{竊}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ミレバ}}{}{以}{、}{}{\furiokuri{}{}}
+}
+\hbox{
+\kanjiunit{\furiokuri{}{}}{}{難}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ノ}}{}{思}{}{}{\furiokuri{}{}}
+\kern-0.05em\kanjiunit{\furiokuri{}{}}{}{弘}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ハ}}{}{誓}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{スル}}{}{度}{}{二}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{難}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{度}{}{}{\furiokuri{}{}}
+\kern-0.05em\kanjiunit{\furiokuri{}{ヲ}}{}{海}{}{一}{\furiokuri{}{}}
+}
+\kanjiunit{\furiokuri{}{}}{}{大}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{船}{、}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{无}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ノ}}{}{碍}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{光}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ハ}}{}{明}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{スル}}{}{破}{}{二}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{无}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ノ}}{}{明}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ヲ}}{}{闇}{}{一}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{恵}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ナリ}}{}{日}{。}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{レバ}}{}{然}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{則}{、}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{浄}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{ハウ}{}}{}{邦}{}{}{\furiokuri{クニ}{}}
+\kanjiunit{\furiokuri{}{}}{}{縁}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{シテ}}{}{熟}{、}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{調}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{達}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{闍}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ヲシテ}}{}{世}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ゼシム}}{}{興}{}{二}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{逆}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ヲ}}{}{害}{、}{一}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{浄}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{業}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{機}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{あらわ}{レテ}}{}{彰}{、}{}{\furiokuri{シヤウ反}{}}
+\kanjiunit{\furiokuri{}{}}{}{釈}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{迦}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{韋}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ヲシテ}}{}{提}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{　　}{バシメタマヘリ}}{}{選}{}{二}{\furiokuri{}{}}
+% 送り仮名が長く、かつ、ふりがなが無いとき、送り仮名が一番上から始まってしまうが、
+% まだ、これを修正できていないので、運用でカバー（これはあまり多く発生しない）。
+% scaleが2ならば全角スペースを１個、scaleが2ならば全角スペースを２個入れると良い
+\kanjiunit{\furiokuri{}{}}{}{　}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{安}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ヲ}}{}{養}{。}{一}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{レ}}{}{斯}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{チ}}{}{乃}{、}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{権}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ノ}}{}{化}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{仁}{、}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{シク}}{}{斉}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{救}{―}{二}{\furiokuri{タスケスクウ}{}}
+\kanjiunit{\furiokuri{}{シ}}{}{済}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{苦}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ノ}}{}{悩}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{群}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ヲ}}{}{萌}{、}{一}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{世}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ノ}}{}{雄}{}{}{\furiokuri{オウ}{}}
+\kanjiunit{\furiokuri{}{}}{}{悲}{、}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ク}}{}{正}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ス}}{}{欲}{}{レ}{\furiokuri{}{}}
+%\buntoure
+% 文頭にレ点が来る場合のコマンド。もし、恵が先頭に来た時は、前の行のレ点を削り、
+% ここのコメントマークを外す。
+\kanjiunit{\furiokuri{}{マムト}}{}{恵}{}{二}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{逆}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{謗}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{闡}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ヲ}}{}{提}{。}{一}{\furiokuri{}{}}
+
+\bousen[vspaceBefore=-1.6em, vspaceAfter=-.5em, shita=.5em, label=\rensuji{(1)}]{
+\kanjiunit{\furiokuri{}{カニ}}{}{竊}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ミレバ}}{}{以}{、}{}{\furiokuri{}{}}
+}
+\hbox{
+\kanjiunit{\furiokuri{}{}}{}{難}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ノ}}{}{思}{}{}{\furiokuri{}{}}
+\kern-0.05em\kanjiunit{\furiokuri{}{}}{}{弘}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ハ}}{}{誓}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{スル}}{}{度}{}{二}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{難}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{度}{}{}{\furiokuri{}{}}
+\kern-0.05em\kanjiunit{\furiokuri{}{ヲ}}{}{海}{}{一}{\furiokuri{}{}}
+}
+\kanjiunit{\furiokuri{}{}}{}{大}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{船}{、}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{无}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ノ}}{}{碍}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{光}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ハ}}{}{明}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{スル}}{}{破}{}{二}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{无}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ノ}}{}{明}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ヲ}}{}{闇}{}{一}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{恵}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ナリ}}{}{日}{。}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{レバ}}{}{然}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{則}{、}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{浄}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{ハウ}{}}{}{邦}{}{}{\furiokuri{クニ}{}}
+\kanjiunit{\furiokuri{}{}}{}{縁}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{シテ}}{}{熟}{、}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{調}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{達}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{闍}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ヲシテ}}{}{世}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ゼシム}}{}{興}{}{二}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{逆}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ヲ}}{}{害}{、}{一}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{浄}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{業}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{機}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{あらわ}{レテ}}{}{彰}{、}{}{\furiokuri{シヤウ反}{}}
+\kanjiunit{\furiokuri{}{}}{}{釈}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{迦}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{韋}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ヲシテ}}{}{提}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{　　}{バシメタマヘリ}}{}{選}{}{二}{\furiokuri{}{}}
+% 送り仮名が長く、かつ、ふりがなが無いとき、送り仮名が一番上から始まってしまうが、
+% まだ、これを修正できていないので、運用でカバー（これはあまり多く発生しない）。
+% scaleが2ならば全角スペースを１個、scaleが2ならば全角スペースを２個入れると良い
+\kanjiunit{\furiokuri{}{}}{}{　}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{安}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ヲ}}{}{養}{。}{一}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{レ}}{}{斯}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{チ}}{}{乃}{、}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{権}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ノ}}{}{化}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{仁}{、}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{シク}}{}{斉}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{救}{―}{二}{\furiokuri{タスケスクウ}{}}
+\kanjiunit{\furiokuri{}{シ}}{}{済}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{苦}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ノ}}{}{悩}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{群}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ヲ}}{}{萌}{、}{一}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{世}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ノ}}{}{雄}{}{}{\furiokuri{オウ}{}}
+\kanjiunit{\furiokuri{}{}}{}{悲}{、}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ク}}{}{正}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ス}}{}{欲}{}{レ}{\furiokuri{}{}}
+%\buntoure
+% 文頭にレ点が来る場合のコマンド。もし、恵が先頭に来た時は、前の行のレ点を削り、
+% ここのコメントマークを外す。
+\kanjiunit{\furiokuri{}{マムト}}{}{恵}{}{二}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{逆}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{謗}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{}}{}{闡}{}{}{\furiokuri{}{}}
+\kanjiunit{\furiokuri{}{ヲ}}{}{提}{。}{一}{\furiokuri{}{}}\end{spacing}
+}
+\end{document}
